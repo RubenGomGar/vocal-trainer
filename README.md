@@ -30,7 +30,7 @@ App web (un solo `index.html`) servida por el Cloudflare Worker **vocal**.
 - A mano, sin GitHub: `npm run deploy:staging` o `npm run deploy`.
 
 ## Ver comentarios y errores
-`https://TU-DOMINIO/api/admin?key=TU_ADMIN_KEY` (y en la beta con su propia clave).
+`https://TU-DOMINIO/api/admin`: escribe la clave en el formulario (queda una cookie de 12 h). La clave nunca va en la dirección. 10 intentos fallidos por hora e IP bloquean el acceso esa hora.
 
 ## Reglas
 - **No** añadas `Content-Security-Policy` en `_headers`: la app se queda en negro.

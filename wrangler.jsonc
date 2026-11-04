@@ -14,6 +14,10 @@
   "kv_namespaces": [
     { "binding": "RESONAR", "id": "d2a6e98ce89c4553bee96d0673080ae0" }
   ],
+  // Límite nativo contra spam en /api/feedback y /api/log (10 peticiones por minuto y clave)
+  "ratelimits": [
+    { "name": "RL", "namespace_id": "3401", "simple": { "limit": 10, "period": 60 } }
+  ],
   // Cuando tengas el dominio, descomenta y pon el tuyo:
   // "routes": [
   //   { "pattern": "resonar.app", "custom_domain": true },
@@ -26,6 +30,9 @@
       "workers_dev": true,
       "kv_namespaces": [
         { "binding": "RESONAR", "id": "fe733e379f4c4fcea6a3339ab8fb33ca" }
+      ],
+      "ratelimits": [
+        { "name": "RL", "namespace_id": "3402", "simple": { "limit": 10, "period": 60 } }
       ]
       // Con dominio: "routes": [{ "pattern": "beta.resonar.app", "custom_domain": true }]
     }

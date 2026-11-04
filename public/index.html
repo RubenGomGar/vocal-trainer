@@ -29,9 +29,14 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>window.__errs=[];window.addEventListener('error',function(e){var m=(e.message||'Error')+(e.lineno?' (línea '+e.lineno+')':'');__errs.push(m);if(window.__sendErr)__sendErr(m,e.filename,e.lineno,e.error&&e.error.stack)});
 setTimeout(function(){if(document.querySelector('.screen.on'))return;var b=document.getElementById('boot');if(b)b.innerHTML='<b>No arranca</b><p>Recarga la página. Si sigue igual, puede que la versión publicada esté incompleta.</p>'+(__errs.length?'<pre>'+__errs.join('\n').replace(/</g,'&lt;')+'</pre>':'')},2500)</script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preload" href="fonts/fredoka-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+/* Fredoka servida desde nuestro dominio (OFL 1.1): no se envía la IP del usuario a Google */
+@font-face{font-family:Fredoka;font-style:normal;font-weight:400;font-display:swap;src:url(fonts/fredoka-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:Fredoka;font-style:normal;font-weight:500;font-display:swap;src:url(fonts/fredoka-latin-500-normal.woff2) format('woff2')}
+@font-face{font-family:Fredoka;font-style:normal;font-weight:600;font-display:swap;src:url(fonts/fredoka-latin-600-normal.woff2) format('woff2')}
+@font-face{font-family:Fredoka;font-style:normal;font-weight:700;font-display:swap;src:url(fonts/fredoka-latin-700-normal.woff2) format('woff2')}
+
 :root{--bg:#14122b;--bg2:#1b1838;--card:#232046;--card2:#2d2958;--line:#3a3570;--ink:#f4f2ff;--mute:#aaa4d8;--vib:#a17dff;--arm:#ffb547;--bar:#3fd0b5;--ok:#42d392;--bad:#ff6b7a;--warn:#ffd166;--acc:#ff7ab8;--r:18px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:Fredoka,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px}
@@ -930,7 +935,7 @@ $$('[data-go]').forEach(b=>b.onclick=()=>{stopLoops();goHome()});
 function renderProfiles(){
   const L=$('#pfList');L.innerHTML='';
   profiles.forEach(p=>{const d=document.createElement('div');d.className='pf';
-    d.innerHTML=`<button class="av">${p.av}</button><b>${esc(p.name)}</b><div><button class="del">borrar</button></div>`;
+    d.innerHTML=`<button class="av">${esc(p.av)}</button><b>${esc(p.name)}</b><div><button class="del">borrar</button></div>`;
     d.querySelector('.av').onclick=()=>selectProfile(p.id);
     let armed=false;d.querySelector('.del').onclick=e=>{const b=e.target;if(!armed){armed=true;b.textContent='¿seguro? toca otra vez';b.style.color='var(--bad)';setTimeout(()=>{armed=false;b.textContent='borrar';b.style.color=''},3000);return}
       profiles=profiles.filter(x=>x.id!==p.id);saveProfiles();try{localStorage.removeItem('rsn_prog_'+p.id)}catch(e){}renderProfiles()};
@@ -1956,7 +1961,7 @@ function sgSave(score){const k=sgKey();if(!k||!prof)return;let L=sgSongs();const
   const drop=L.slice(15);L=L.slice(0,15);LS.set('sg_songs_'+prof.id,L);drop.forEach(s=>{if(s.yt)try{localStorage.removeItem('rsn_sg_mel_'+s.yt)}catch(e){}});
   if(SG.ytId&&SG.ref&&!SG.refFromSave){LS.set('sg_mel_'+SG.ytId,{v:2,hop:SG.ref.hop,t0:SG.ref.t0||0,m:melEnc(SG.ref.m)});SG.refFromSave=true}}
 function sgRenderSongs(){const L=sgSongs();$('#sgSongsBox').style.display=L.length?'':'none';
-  $('#sgSongs').innerHTML=L.map((s,i)=>`<button class="sgsong" data-i="${i}">${s.yt?`<img src="https://i.ytimg.com/vi/${esc(s.yt)}/mqdefault.jpg" alt="" loading="lazy">`:'<span class="ph">🎵</span>'}<div class="sp" style="min-width:0"><div class="tt">${esc(s.title)}</div><div class="small mute">${esc(s.d)} · ${s.n} ${s.n===1?'vez':'veces'}${s.ref?' · con melodía':''}</div></div><div style="text-align:right"><b style="color:${gcol(s.last)}">${fmt(s.last)}</b><div class="small mute">mejor ${fmt(s.best)}</div></div></button>`).join('');
+  $('#sgSongs').innerHTML=L.map((s,i)=>`<button class="sgsong" data-i="${i}">${s.yt?`<img src="https://i.ytimg.com/vi/${esc(s.yt)}/mqdefault.jpg" alt="" loading="lazy">`:'<span class="ph">🎵</span>'}<div class="sp" style="min-width:0"><div class="tt">${esc(s.title)}</div><div class="small mute">${esc(s.d)} · ${+s.n||0} ${+s.n===1?'vez':'veces'}${s.ref?' · con melodía':''}</div></div><div style="text-align:right"><b style="color:${gcol(s.last)}">${fmt(s.last)}</b><div class="small mute">mejor ${fmt(s.best)}</div></div></button>`).join('');
   $$('#sgSongs .sgsong').forEach(b=>b.onclick=()=>{const s=L[+b.dataset.i];if(s.yt){$('#sgUrl').value='https://youtu.be/'+s.yt;sgSetVideo(s.yt);window.scrollTo({top:0,behavior:'smooth'})}else toast('Vuelve a subir el audio de «'+s.title+'»',3500)})}
 
 /* --- pantalla --- */
@@ -2179,12 +2184,20 @@ $('#bkExp').onclick=async()=>{let data;try{data=collectData()}catch(e){toast('No
   try{const f=new File([blob],name,{type:'application/json'});if(navigator.canShare&&navigator.canShare({files:[f]})&&(isIOS()||/Android/.test(navigator.userAgent))){await navigator.share({files:[f],title:'Copia de Resonar'});LS.set('lastBackup',Date.now());bkInfo();return}}catch(e){if(e&&e.name==='AbortError')return}
   try{const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);LS.set('lastBackup',Date.now());bkInfo();toast('Copia descargada: '+name)}catch(e){toast('Este navegador no permite descargar archivos aquí.')}};
 $('#bkImp').onclick=()=>{$('#bkFile').value='';$('#bkFile').click()};
+// Seguridad: solo se restauran claves conocidas, con JSON válido y sin «<» ni «>» en ningún texto (una copia manipulada no puede meter código)
+const BK_KEYS=/^rsn_(prefs|profiles|last|onb|lastBackup|instHide|installed|prog_[\w-]{1,40}|sg_songs_[\w-]{1,40}|sg_mel_[\w-]{11})$/;
+function bkClean(v,depth=0){if(depth>8)return null;if(typeof v==='string')return v.slice(0,200000).replace(/[<>]/g,c=>c==='<'?'‹':'›');if(typeof v==='number')return isFinite(v)?v:0;if(typeof v==='boolean'||v==null)return v;
+  if(Array.isArray(v))return v.slice(0,2000).map(x=>bkClean(x,depth+1));if(typeof v==='object'){const o={};for(const [k,x] of Object.entries(v).slice(0,2000)){if(k==='__proto__'||k==='constructor'||k==='prototype')continue;o[k.replace(/[<>]/g,'')]=bkClean(x,depth+1)}return o}return null}
+function bkSanitize(data){const out={};let bad=0;for(const [k,v] of Object.entries(data||{})){if(!BK_KEYS.test(k)||typeof v!=='string'){bad++;continue}let j;try{j=JSON.parse(v)}catch(e){bad++;continue}
+    if(k==='rsn_profiles'){if(!Array.isArray(j)){bad++;continue}j=j.filter(p=>p&&typeof p.id==='string'&&/^[\w-]{1,40}$/.test(p.id)).map(p=>({id:p.id,name:String(p.name||'').slice(0,40),av:String(p.av||'🎤').slice(0,8),sex:['M','F','X'].includes(p.sex)?p.sex:null,low:Number.isFinite(p.low)?p.low:null,high:Number.isFinite(p.high)?p.high:null}))}
+    out[k]=JSON.stringify(bkClean(j))}
+  return{out,bad}}
 $('#bkFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;let doc;try{doc=JSON.parse(await f.text())}catch(x){toast('Ese archivo no es una copia de Resonar.');return}
   if(!doc||doc.app!=='resonar'||typeof doc.data!=='object'){toast('Ese archivo no es una copia de Resonar.');return}
   const n=Object.keys(doc.data).filter(k=>k.startsWith('rsn_')).length;const who=(doc.profiles||[]).join(', ');
   askSheet('¿Restaurar la copia?','Del '+new Date(doc.date).toLocaleDateString('es-ES')+(who?' · perfiles: '+who:'')+'. Sustituye todo lo que hay ahora en este dispositivo.',()=>{
     try{const old=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('rsn_'))old.push(k)}old.forEach(k=>localStorage.removeItem(k));
-      Object.entries(doc.data).forEach(([k,v])=>{if(k.startsWith('rsn_')&&typeof v==='string')localStorage.setItem(k,v)});localStorage.setItem('rsn_onb','1');toast('Copia restaurada ('+n+' datos). Recargando…');setTimeout(()=>location.reload(),900)}
+      const {out,bad}=bkSanitize(doc.data);if(bad)console.warn('copia: '+bad+' datos descartados');Object.entries(out).forEach(([k,v])=>localStorage.setItem(k,v));localStorage.setItem('rsn_onb','1');toast('Copia restaurada ('+n+' datos). Recargando…');setTimeout(()=>location.reload(),900)}
     catch(x){toast('No se ha podido restaurar: '+(x.name==='QuotaExceededError'?'no hay espacio':'error del navegador'))}})};
 // --- bienvenida ---
 const WSL=[
