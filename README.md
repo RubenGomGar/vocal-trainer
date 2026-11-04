@@ -15,7 +15,7 @@ App web (un solo `index.html`) servida por el Cloudflare Worker **vocal**.
 
 ## Puesta en marcha (una vez)
 1. `npm install`
-2. Secretos del panel: `npx wrangler secret put ADMIN_KEY` y `npx wrangler secret put ADMIN_KEY --env staging`
+2. Clave del panel: secreto de GitHub `PANEL_ADMIN_KEY` (el workflow la sube como `ADMIN_KEY` a los dos Workers en cada despliegue)
 3. En GitHub → Settings → Secrets and variables → Actions:
    - `CLOUDFLARE_API_TOKEN` (plantilla «Edit Cloudflare Workers»)
    - `CLOUDFLARE_ACCOUNT_ID` (Panel de Cloudflare → Workers & Pages, columna derecha)

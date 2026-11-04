@@ -36,3 +36,8 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUT_ID }}
           command: deploy ${{ github.ref_name == 'main' && ' ' || '--env staging' }}
+          # Copia el secreto de GitHub PANEL_ADMIN_KEY como secreto ADMIN_KEY del Worker (panel /api/admin)
+          secrets: |
+            ADMIN_KEY
+        env:
+          ADMIN_KEY: ${{ secrets.PANEL_ADMIN_KEY }}
