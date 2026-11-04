@@ -1,0 +1,15 @@
+{
+  "_comentario": "Datos por entorno. El build los inyecta en index.html y privacidad.html. Rellena owner, email y analytics antes de abrir al público.",
+  "production": {
+    "siteUrl": "https://vocal.TU-SUBDOMINIO.workers.dev",
+    "owner": "",
+    "email": "",
+    "analytics": ""
+  },
+  "staging": {
+    "siteUrl": "https://vocal-staging.TU-SUBDOMINIO.workers.dev",
+    "owner": "",
+    "email": "",
+    "analytics": ""
+  }
+}

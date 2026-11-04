@@ -1,0 +1,38 @@
+name: Desplegar
+
+# develop → vocal-staging (beta) · main → vocal (público)
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Comprobar
+        run: node scripts/check.mjs
+
+      - name: Build
+        run: node scripts/build.mjs ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+
+      - name: Desplegar en Cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUT_ID }}
+          command: deploy ${{ github.ref_name == 'main' && ' ' || '--env staging' }}
