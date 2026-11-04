@@ -1022,7 +1022,8 @@ function yin2(buf,sr,prevM){const n=buf.length>>1;if(!YB.x||YB.x.length!==n){YB.
   let mu=0;for(let i=0;i<n;i++)mu+=x[i];mu/=n;for(let i=0;i<n;i++)x[i]-=mu;
   const fs=sr/2,W=n>>1,tMin=Math.max(2,Math.floor(fs/1600)),tMax=Math.min(W-2,Math.floor(fs/62));
   if(!YB.d||YB.d.length<tMax+2){YB.d=new Float32Array(tMax+2);YB.c=new Float32Array(tMax+2)}const d=YB.d,c=YB.c;
-  for(let t=1;t<=tMax+1;t++){let s=0;for(let i=0;i<W;i++){const q=x[i]-x[i+t];s+=q*q}d[t]=s}
+  const o=Math.max(0,n-W-tMax-2);// la ventana más reciente del buffer: menos retraso
+  for(let t=1;t<=tMax+1;t++){let s=0;for(let i=0;i<W;i++){const q=x[o+i]-x[o+i+t];s+=q*q}d[t]=s}
   let run=0;c[0]=1;for(let t=1;t<=tMax+1;t++){run+=d[t];c[t]=run?d[t]*t/run:1}
   let p=-1;for(let t=tMin;t<=tMax;t++){if(c[t]<.15){while(t+1<=tMax&&c[t+1]<c[t])t++;p=t;break}}
   if(p<0){let mn=1;for(let t=tMin;t<=tMax;t++)if(c[t]<mn)mn=c[t];if(mn>.35)return null;
@@ -1039,6 +1040,8 @@ function pvReset(){PV.hist.length=0;PV.note=null;PV.disp=null;PV.cand=null;PV.la
 function pvUpdate(m,t,conf){const WIN=STAB_WIN[prefs.stab]||STAB_WIN.medio;
   if(m==null){if(PV.last!=null&&t-PV.last>.18){PV.disp=null;PV.hist.length=0}if(PV.last!=null&&t-PV.last>.6)PV.note=null;return}
   PV.last=t;if(PV.disp!=null&&Math.abs(m-PV.disp)>1.5){const rec=PV.hist.filter(h=>t-h.t<.08);if(rec.length>=3&&rec.every(h=>Math.abs(h.m-m)<1))PV.hist=rec}
+  else if(PV.disp!=null&&Math.abs(m-PV.disp)>.7){// cambio de nota más pequeño: si las lecturas de los últimos 70 ms ya están todas en la nota nueva, olvidar la anterior
+    const rec=PV.hist.filter(h=>t-h.t<.07);if(rec.length>=3){const ms=rec.map(h=>h.m).concat(m),lo=Math.min(...ms),hi=Math.max(...ms);if(hi-lo<.5&&ms.every(x=>Math.abs(x-PV.disp)>.6))PV.hist=rec}}
   PV.hist.push({t,m,w:Math.max(.2,conf||1)});while(PV.hist.length&&t-PV.hist[0].t>WIN)PV.hist.shift();
   const md=median(PV.hist.map(h=>h.m));let s=0,sw=0;for(const h of PV.hist)if(Math.abs(h.m-md)<=1.5){s+=h.m*h.w;sw+=h.w}PV.disp=sw?s/sw:m;
   const r=Math.round(PV.disp);
@@ -1228,7 +1231,7 @@ function loopGame(){raf=requestAnimationFrame(loopGame);const G=game;if(!G||!G.r
   const dot=$('#gDot');dot.className='dot '+(a.m!=null?'on':'');if(AU.mode==='sim'&&a.m==null)dot.className='dot demo';
   $('#gNote').textContent=a.note!=null&&!ign?nn(a.note):'—';
   {const S=G.ndl||(G.ndl=mkNeedle());const sg=seg&&seg.m0!=null?seg:null;let e2=null,key=null;if(a.disp!=null&&!ign){if(sg){e2=(a.disp-tgt(sg,t))*100;key='s'+tl.segs.indexOf(sg)}else{const q=needleRef(S,a.disp,0);e2=(a.disp-q)*100;key='n'+q}}
-    needleStep(S,e2,key);const el=$('#gTune');el.style.left=(S.shown==null?50:clamp(50+S.shown/100*50,4,96))+'%';el.style.background=S.shown==null?'':ZCOL[S.zone]}
+    needleStep(S,e2,key,undefined,ign?null:a.disp,ign?null:a.m);const el=$('#gTune');el.style.left=(S.shown==null?50:clamp(50+S.shown/100*50,4,96))+'%';el.style.background=S.shown==null?'':ZCOL[S.zone]}
   const nxt=tl.segs.find(s=>s.t0>t&&s.g!=='rest');
   if(t<0){const ct=G.cueTxt;$('#gNow').textContent=ct&&now<ct.ph?'🎧 Escucha la frase':ct&&now<ct.first?'🎧 Tu primera nota · '+nn(ct.m):'Prepárate…';$('#gNext').textContent=nxt?('Empieza: '+(nxt.v||'')+(nxt.m0!=null?' · '+nn(nxt.m0):'')):''}
   else if(seg){if(seg.g==='rest'){let tx='Respira';if(seg.cue){const r=t-seg.t0-seg.cueAt,c=seg.cue;tx=r<0?'Respira':r<c.firstAt?'🎧 Escucha la frase':r<c.firstAt+CUE.first?'🎧 Tu primera nota · '+nn(c.m):'Prepárate… ¡ahora tú!'}$('#gNow').textContent=tx;}else{$('#gNow').textContent=(seg.v||GOAL_INFO[seg.g][0])+(seg.m0!=null?' · '+nn(tgt(seg,t)):'');}
@@ -1476,7 +1479,7 @@ function loopTuner(){if(!tuOn)return;raf=requestAnimationFrame(loopTuner);const 
   const a=analyze(false),ign=now<AU.ignoreUntil;let m=ign?null:a.m;if(m!=null)addDose(1/60);
   const sm=ign?null:a.disp;
   let ref=null,c0=null;if(sm!=null){ref=tu.mode==='fija'?tu.tgt:a.note;c0=(sm-ref)*100}
-  const S=tu.ndl||(tu.ndl=mkNeedle());needleStep(S,c0,'r'+ref,[10,25]);const c=S.shown;if(c==null)ref=null;else if(ref==null)ref=S.key?+S.key.slice(1):null;
+  const S=tu.ndl||(tu.ndl=mkNeedle());needleStep(S,c0,'r'+ref,[10,25],sm,ign?null:a.m);const c=S.shown;if(c==null)ref=null;else if(ref==null)ref=S.key?+S.key.slice(1):null;
   const msg=$('#tMsg'),TC=['#42d392','#ffd166','#ff6b7a'];
   if(c==null){$('#tNote').textContent=tu.mode==='fija'?nn(tu.tgt):'—';$('#tNote').style.color='';$('#tCents').textContent=tu.mode==='fija'?'Objetivo':'Canta una nota';msg.textContent=tu.mode==='fija'?'Canta '+nn(tu.tgt):'Canta una nota larga en «a» o «u»';msg.style.color='';tu.okT=0}
   else{const ac=Math.abs(c),col=TC[S.zone];
@@ -1566,7 +1569,7 @@ function loopLab(){if(!labOn)return;raf=requestAnimationFrame(loopLab);if(labFro
   if(AU.mode==='sim'){const ph=t%12;simSet(ph<5?{m:profMid(),vib:ph>1.5,rate:5.6,ext:80,gain:.25,cut:ph<3?1500:4800}:ph<6?null:ph<11?{m:profMid()+4,vib:false,gain:.25,cut:2.05,cutRel:1,q:7}:null)}
   const a=analyze(true);lastM=a.m;dgUpdate(a);if(a.m!=null)addDose(1/60);labHist.push({t,m:a.m});while(labHist.length&&t-labHist[0].t>6)labHist.shift();
   const v=labHist.filter(x=>x.m!=null);$('#lNote').textContent=a.note!=null?nn(a.note):'—';
-  {const S=window.__labN||(window.__labN=mkNeedle());let c=null,key=null;if(a.disp!=null){const q=needleRef(S,a.disp,0);c=(a.disp-q)*100;key='n'+q}needleStep(S,c,key);const el=$('#lTune');el.style.left=(S.shown==null?50:clamp(50+S.shown,4,96))+'%';el.style.background=S.shown==null?'':ZCOL[S.zone]}
+  {const S=window.__labN||(window.__labN=mkNeedle());let c=null,key=null;if(a.disp!=null){const q=needleRef(S,a.disp,0);c=(a.disp-q)*100;key='n'+q}needleStep(S,c,key,undefined,a.disp,a.m);const el=$('#lTune');el.style.left=(S.shown==null?50:clamp(50+S.shown,4,96))+'%';el.style.background=S.shown==null?'':ZCOL[S.zone]}
   const rec=v.filter(x=>t-x.t<=2);const vs=rec.length>50?vibStats(rec,null):null;$('#lVib').textContent=vs&&vs.present?fmt(vs.rate)+' Hz · '+Math.round(vs.ext)+' c':'—';$('#lVibT').textContent=vs?vibLabel(vs):'—';
   $('#lRing').textContent=a.ring!=null?fmt(a.ring,0):'—';$('#lAct').textContent=a.act!=null?fmt(a.act,0):'—';$('#lH12').textContent=a.h12!=null?fmt(a.h12,0):'—';
   const cv=$('#lcv'),{g,w,h}=fit(cv);g.clearRect(0,0,w,h);let lo,hi;if(v.length){const ms=v.map(x=>x.m);lo=Math.floor(Math.min(...ms))-2;hi=Math.ceil(Math.max(...ms))+2;if(hi-lo<8){const c=(hi+lo)/2;lo=c-4;hi=c+4}}else{lo=profMid()-6;hi=profMid()+6}
@@ -1982,7 +1985,7 @@ function sgLoop(){if(!SG.on)return;raf=requestAnimationFrame(sgLoop);
   if(performance.now()-SG.shiftT>1000&&SG.refMed!=null){SG.shiftT=performance.now();const v=SG.frames.concat(SG.secFrames).filter(f=>f.m!=null);if(v.length>60){const st=v.length>600?Math.floor(v.length/600):1;const ms=[];for(let i=0;i<v.length;i+=st)ms.push(v[i].m);SG.shift=12*Math.round((median(ms)-SG.refMed)/12)}}
   if(plKind()==='au'){const d=plDur();$('#auTime').textContent=mmss(vt)+(d?' / '+mmss(d):'');$('#auBar i').style.width=(d?vt/d*100:0)+'%'}
   if(SG.mode==='sec'&&playing&&vt>SG.sec.t1+1.2){sgEndSection();return}
-  sgDrawLive(vt);sgNeedle(a.disp,t,playing,a.note)}
+  sgDrawLive(vt);sgNeedle(a.disp,t,playing,a.note,a.m)}
 function sgSim(vt){if(SG.refNotes){const rn=refNoteAt(vt+SG.off);if(!rn||vt+SG.off-rn.t0<.06)return null;const e=((Math.sin(rn.t0*12.9898)*43758.5453)%1+1)%1;
     return{m:rn.q+SG.refOff+SG.shift+(e-.5)*.5,vib:rn.dur>1&&vt+SG.off-rn.t0>.35,rate:5.5,ext:80,gain:.25,cut:3000}}
   return simSong(vt%(SONG_T+1))}
@@ -1993,22 +1996,32 @@ function sgTarget(t){const rn=SG.refNotes?refNoteAt(t+SG.off):null;return rn?rn.
 function mkNeedle(){return{v:null,shown:null,key:null,t:0,lastT:0,zone:null,txtT:0,ref:null}}
 // nota de referencia con histéresis (sin objetivo): evita el salto de +49 a −49 cents en el borde entre notas
 function needleRef(S,m,g){const x=m-g;if(S.ref==null||Math.abs(x-S.ref)>.62)S.ref=Math.round(x);return S.ref}
-function needleStep(S,d,key,thr=[15,35]){const now=performance.now()/1000;
-  if(d==null){if(S.shown!=null&&now-S.lastT<.25)return S;S.v=S.shown=null;S.zone=null;S.ref=null;return S}
+function needleStep(S,d,key,thr=[15,35],mv,mr){const now=performance.now()/1000;
+  if(d==null){if(S.shown!=null&&now-S.lastT<.25)return S;S.v=S.shown=null;S.zone=null;S.ref=null;S.mRef=null;S.settling=false;return S}
   S.lastT=now;
-  if(S.v==null||S.key!==key){S.v=S.shown=d;S.key=key;S.t=now}
+  // al cambiar la nota objetivo o al moverse la voz a otra nota, la aguja espera 0,15 s quieta (atenuada) a que la voz se asiente
+  if(S.key!==key&&S.key!=null){S.settleT=now}
+  if(mv!=null){if(S.mRef==null)S.mRef=mv;
+    // dispara la espera: la media salta (> 0,5 st) o la lectura cruda se va lejos de la media (> 0,9 st, un cambio de nota, no vibrato)
+    else if(Math.abs(mv-S.mRef)>.5||(mr!=null&&Math.abs(mr-mv)>.9&&!(S.settleT!=null&&now-S.settleT<.4))){S.settleT=now;S.mRef=mv}else S.mRef+=(mv-S.mRef)*.1;
+    (S.mh||(S.mh=[])).push({t:now,r:mr!=null?mr:mv,d:mv});while(S.mh.length&&now-S.mh[0].t>.08)S.mh.shift()}
+  S.key=key;
+  // termina cuando la media ya está en la nota de la voz (cerca de la mediana cruda) y quieta, o a los 0,4 s
+  {const el=S.settleT!=null?now-S.settleT:9;let ok=true;if(el<.4&&mv!=null&&S.mh&&S.mh.length>=3){const rs=S.mh.map(x=>x.r),ds=S.mh.map(x=>x.d);ok=Math.abs(median(rs.slice(-3))-mv)<.5&&Math.max(...ds)-Math.min(...ds)<.2}S.settling=el<.4&&(el<.1||!ok)}
+  if(S.settling){S.wasSettling=true;S.t=now;return S}
+  if(S.v==null||S.wasSettling){S.v=S.shown=d;S.t=now;S.wasSettling=false}
   else{const dt=Math.min(.1,Math.max(0,now-S.t));S.t=now;S.v+=(d-S.v)*(1-Math.exp(-dt/.15));if(Math.abs(S.v-S.shown)>=2.5)S.shown=S.v}
   const a=Math.abs(S.shown),z=a<=thr[0]?0:a<=thr[1]?1:2;
   if(S.zone==null)S.zone=z;else if(z<S.zone){if(a<=thr[z]-3)S.zone=z}else if(z>S.zone){if(a>thr[S.zone]+3)S.zone=z}
   return S}
 const ZCOL=['var(--ok)','var(--warn)','var(--bad)'];
-function sgNeedle(m,t,playing,note){const nd=$('#sgNeedle'),tx=$('#sgTxt');const S=SG.ndl||(SG.ndl=mkNeedle());
+function sgNeedle(m,t,playing,note,mr){const nd=$('#sgNeedle'),tx=$('#sgTxt');const S=SG.ndl||(SG.ndl=mkNeedle());
   let d=null,want=null,key=null;const tg=m!=null?sgTarget(t):null;
   if(m!=null){if(tg!=null){const dd=fold(m-tg);d=dd*100;want=Math.round(m-dd);key='t'+tg}else{const g=SG.ref?SG.refOff:0;const q=needleRef(S,m,g);d=(m-g-q)*100;key='n'+q}}
-  needleStep(S,d,key);
+  needleStep(S,d,key,undefined,m,mr);
   if(S.shown==null){$('#sgNote').textContent='—';nd.style.opacity=.25;nd.style.left='50%';nd.style.background='';tx.textContent=playing?'Canta…':'En pausa';tx.style.color='';return}
-  const v=S.shown,av=Math.abs(v);$('#sgNote').textContent=nn(note!=null?note:m!=null?m:S.ref);nd.style.opacity=1;nd.style.left=(50+clamp(v,-60,60)/120*100)+'%';nd.style.background=ZCOL[S.zone];
-  const now=performance.now()/1000;if(now-S.txtT<.15)return;S.txtT=now;
+  const v=S.shown,av=Math.abs(v);$('#sgNote').textContent=nn(note!=null?note:m!=null?m:S.ref);nd.style.opacity=S.settling?.45:1;nd.style.left=(50+clamp(v,-60,60)/120*100)+'%';nd.style.background=ZCOL[S.zone];
+  const now=performance.now()/1000;if(S.settling||now-S.txtT<.15)return;S.txtT=now;
   if(want!=null&&av>60){tx.textContent='Busca '+nn(want)+(v>0?' ↓':' ↑');tx.style.color='var(--bad)'}
   else{tx.textContent=S.zone===0?'¡Afinado!':(v>0?(S.zone===2?'Alto':'Un poco alto'):(S.zone===2?'Bajo':'Un poco bajo'))+' '+(v>0?'+':'−')+5*Math.round(av/5)+' c';tx.style.color=ZCOL[S.zone]}}
 function sgDrawLive(vt){const cv=$('#sgcv'),{g,w,h}=fit(cv);g.clearRect(0,0,w,h);const A=vt-6,B=vt+3,X=t=>(t-A)/(B-A)*w,lat=sgLat();
