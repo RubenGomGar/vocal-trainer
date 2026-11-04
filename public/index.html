@@ -172,6 +172,8 @@ details.det summary{cursor:pointer;color:var(--vib);font-size:14px;margin:6px 0}
 #auBar i{display:block;height:100%;width:0;background:var(--bar)}
 #sgUrlRow{display:flex;gap:8px}
 #sgUrlRow input{flex:1;min-width:0}
+.ytbtn{background:#ff0033;color:#fff;border-color:#ff0033;text-decoration:none;padding:6px 12px;font-size:14px}
+.sgprev{position:relative}.sgprev .sgx{position:absolute;top:4px;right:4px}
 .sgprev{display:flex;align-items:center;gap:12px}
 .sgprev img{width:96px;height:54px;object-fit:cover;border-radius:10px;flex:none;background:#000}
 .sgsong{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--card);border-radius:14px;padding:10px 12px;margin:8px 0}
@@ -402,8 +404,9 @@ input.fbm{width:100%;font:inherit;font-size:16px;padding:12px 14px;border-radius
       <!-- preparar -->
       <div id="sgSetup">
         <div class="card">
-          <b>1 · Pega el enlace de YouTube</b>
-          <div id="sgUrlRow" style="margin-top:10px"><input type="text" id="sgUrl" placeholder="https://youtu.be/…" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn" id="sgPaste">📋 Pegar</button></div>
+          <b>1 · Elige un vídeo de YouTube</b>
+          <div id="sgUrlRow" style="margin-top:10px"><input type="text" id="sgUrl" placeholder="Pega el enlace o escribe la canción" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search"><button class="btn" id="sgPaste">📋 Pegar</button></div>
+          <div class="row small" style="margin-top:8px;gap:8px;flex-wrap:wrap"><a class="btn ytbtn" id="sgYt" href="https://www.youtube.com/" target="_blank" rel="noopener">▶ Buscar en YouTube</a><span class="mute" id="sgYtTip">Busca la canción, toca «Compartir» → «Copiar enlace» y vuelve aquí a pegarlo.</span></div>
           <div id="sgPrev" style="margin-top:10px"></div>
         </div>
         <div class="card">
@@ -1710,14 +1713,14 @@ async function sgSetVideo(id){
   if(!SG.ref){const mel=LS.get('sg_mel_'+id,null);if(mel&&mel.v===2){try{sgSetRef({hop:mel.hop,t0:mel.t0||0,m:melDec(mel.m)});SG.refFromSave=true;sgRefStatus('Melodía guardada de la última vez · '+SG.refNotes.length+' notas'+(SG.keyRef?' · '+SG.keyRef.name:''),'ok')}catch(e){}}}
   const w=$('#ytWrap');w.style.display='block';$('#auCard').style.display='none';w.innerHTML='<div id="ytBox"></div>';
   sgRenderPrev();sgUpd();
-  fetch('/api/yt?id='+id).then(r=>{if(r.status===403){SG.ytBlocked=true;sgMsg(YT_ERR[150],'err');sgUpd()}return r.ok?r.json():null}).then(j=>{if(j&&j.title&&SG.ytId===id){SG.title=j.title;SG.author=j.author||'';sgRenderPrev()}}).catch(()=>{});
+  fetch('/api/yt?id='+id).then(r=>{if(r.status===403&&SG.ytId===id){SG.ytBlocked=true;sgYtErr(YT_ERR[150])}return r.ok?r.json():null}).then(j=>{if(j&&j.title&&SG.ytId===id){SG.title=j.title;SG.author=j.author||'';sgRenderPrev()}}).catch(()=>{});
   try{await loadYTApi()}catch(e){if(SG.ytId!==id)return;SG.ytId=null;w.style.display='none';sgShowAudioCard();
     sgMsg('No he podido cargar YouTube aquí. Dentro de la vista previa de Claude es normal: ábrela desde tu web de Cloudflare. Mientras, puedes cantar sobre un audio o la canción de ejemplo.','err');sgRenderPrev();sgUpd();return}
   if(SG.ytId!==id)return;
   const pv={playsinline:1,rel:0,modestbranding:1,iv_load_policy:3};if(location.origin&&location.origin!=='null')pv.origin=location.origin;
   SG.yt=new YT.Player('ytBox',{videoId:id,host:'https://www.youtube-nocookie.com',width:'100%',height:'100%',playerVars:pv,
     events:{onReady:()=>{SG.ytReady=true;try{const d=SG.yt.getVideoData();if(d&&d.title&&!SG.title){SG.title=d.title;SG.author=d.author||''}}catch(e){}sgRenderPrev();sgUpd()},
-      onStateChange:e=>sgState(e.data),onError:e=>{sgMsg(YT_ERR[e.data]||('YouTube ha dado un error ('+e.data+').'),'err');if(SG.on)sgFinish()}}})}
+      onStateChange:e=>sgState(e.data),onError:e=>{if(SG.on)sgFinish();SG.ytBlocked=true;sgYtErr(YT_ERR[e.data]||('YouTube ha dado un error ('+e.data+').'))}}})}
 function sgState(s){SG.ytState=s;if(s===1){$('#sgHint').style.display='none'}if(s===0)sgOnEnded();sgUpdLiveBtns()}
 function sgOnEnded(){if(!SG.on)return;if(SG.mode==='sec')sgEndSection();else sgFinish()}
 
@@ -1894,7 +1897,17 @@ function openSing(){stopLoops();show('sing');sgView('setup');sgRenderPrev();sgRe
   $$('#sgBt button').forEach(b=>{b.classList.toggle('sel',b.dataset.v===(prefs.bt||'0'));b.onclick=()=>{prefs.bt=b.dataset.v;savePrefs();$$('#sgBt button').forEach(x=>x.classList.toggle('sel',x===b))}})}
 function sgView(v){$('#sgSetup').style.display=v==='setup'?'':'none';$('#sgLive').style.display=v==='live'?'':'none';$('#sgRes').style.display=v==='res'?'':'none'}
 function sgMsg(h,cls){$('#sgMsg').innerHTML=h?`<div class="${cls==='err'?'err':'tip'}">${h}</div>`:''}
-function sgRenderPrev(){const el=$('#sgPrev');if(SG.ytId){el.innerHTML=`<div class="sgprev"><img src="https://i.ytimg.com/vi/${esc(SG.ytId)}/mqdefault.jpg" alt=""><div style="min-width:0"><b>${esc(SG.title||'Vídeo de YouTube')}</b><div class="small mute">${esc(SG.author||'')}${SG.ytReady?'':' Cargando…'}</div></div></div>`}else el.innerHTML=''}
+// Quitar el vídeo actual (tras un error o para cambiar) y dejar el campo listo para otro
+function sgClearVideo(){plPause();if(SG.yt){try{SG.yt.destroy()}catch(e){}SG.yt=null}
+  if(SG.refFromSave){SG.ref=null;SG.refNotes=null;SG.keyRef=null;SG.refMed=null;SG.refFromSave=false;sgRefStatus('')}
+  SG.ytId=null;SG.ytReady=false;SG.ytBlocked=false;SG.title='';SG.author='';const w=$('#ytWrap');w.innerHTML='';w.style.display='none';
+  $('#sgUrl').value='';sgMsg('');sgShowAudioCard();sgRenderPrev();sgUpd();setTimeout(()=>$('#sgUrl').focus(),50)}
+function sgYtErr(msg){const q=(SG.title||'').replace(/\(.*?\)|\[.*?\]/g,'').trim();
+  sgMsg(esc(msg)+'<div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn" id="sgErrNew">✕ Probar otro vídeo</button>'+(q?'<a class="btn ytbtn" target="_blank" rel="noopener" href="https://www.youtube.com/results?search_query='+encodeURIComponent(q+' karaoke')+'">▶ Buscar «karaoke» en YouTube</a>':'')+'</div>','err');
+  const b=$('#sgErrNew');if(b)b.onclick=sgClearVideo;sgRenderPrev();sgUpd()}
+// Botón de YouTube: si has escrito algo que no es un enlace, busca eso
+function sgYtLink(){const v=$('#sgUrl').value.trim(),a=$('#sgYt');if(!a)return;const q=v&&!parseYT(v)?v:'';a.href=q?'https://www.youtube.com/results?search_query='+encodeURIComponent(q):'https://www.youtube.com/';a.textContent=q?'▶ Buscar «'+(q.length>28?q.slice(0,27)+'…':q)+'» en YouTube':'▶ Buscar en YouTube'}
+function sgRenderPrev(){const el=$('#sgPrev');if(SG.ytId){el.innerHTML=`<div class="sgprev"><img src="https://i.ytimg.com/vi/${esc(SG.ytId)}/mqdefault.jpg" alt=""><div style="min-width:0;padding-right:36px"><b>${esc(SG.title||'Vídeo de YouTube')}</b><div class="small mute">${esc(SG.author||'')}${SG.ytBlocked?(SG.author?' · ':'')+'no se puede reproducir aquí':SG.ytReady?'':' Cargando…'}</div></div><button class="icon sgx" id="sgClear" title="Quitar vídeo y probar otro">✕</button></div>`;$('#sgClear').onclick=sgClearVideo}else el.innerHTML='';sgYtLink()}
 function sgUpd(){const ok=(SG.ytId&&SG.ytReady&&!SG.ytBlocked)||(!SG.ytId&&SG.au);const b=$('#sgGo');b.disabled=!ok;
   b.textContent=SG.ytId&&!SG.ytReady?'Cargando vídeo…':ok?'🎤 Cantar'+(SG.refNotes?' · con melodía':''):'🎤 Cantar'}
 function sgUpdLiveBtns(){$('#sgPause').textContent=plPlaying()?'⏸ Pausa':'▶ Seguir'}
@@ -2012,8 +2025,9 @@ function sgExampleFile(){const sr=22050,base=Math.round(profMid()),seq=[[null,.8
 /* --- eventos --- */
 $('#hSing').onclick=openSing;
 $('#sgBack').onclick=()=>{sgStop();if($('#sgLive').style.display!=='none'&&SG.res){sgView('res');return}if($('#sgLive').style.display!=='none'){sgView('setup');return}goHome()};
-$('#sgUrl').addEventListener('input',()=>{const id=parseYT($('#sgUrl').value);if(id)sgSetVideo(id)});
-$('#sgUrl').addEventListener('change',()=>{const v=$('#sgUrl').value.trim();if(v&&!parseYT(v))sgMsg('Ese enlace no parece de YouTube. En la app de YouTube toca «Compartir» → «Copiar enlace».','err')});
+$('#sgUrl').addEventListener('input',()=>{const id=parseYT($('#sgUrl').value);if(id)sgSetVideo(id);sgYtLink()});
+$('#sgUrl').addEventListener('keydown',e=>{if(e.key==='Enter'){const v=$('#sgUrl').value.trim();if(v&&!parseYT(v)){e.preventDefault();window.open($('#sgYt').href,'_blank','noopener')}}});
+$('#sgUrl').addEventListener('change',()=>{const v=$('#sgUrl').value.trim();if(v&&!parseYT(v)&&/^https?:|www\./i.test(v))sgMsg('Ese enlace no parece de YouTube. En la app de YouTube toca «Compartir» → «Copiar enlace».','err')});
 $('#sgPaste').onclick=async()=>{try{const t=await navigator.clipboard.readText();$('#sgUrl').value=t;const id=parseYT(t);if(id)sgSetVideo(id);else sgMsg('Lo que tienes copiado no es un enlace de YouTube.','err')}catch(e){$('#sgUrl').focus();toast('Mantén pulsado el cuadro y elige «Pegar»')}};
 $('#sgFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)sgUseFile(f)};
 $('#sgEx').onclick=()=>sgUseFile(sgExampleFile());
