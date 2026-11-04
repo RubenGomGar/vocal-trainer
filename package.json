@@ -2,7 +2,7 @@
   "name": "resonar",
   "private": true,
   "version": "1.0.0",
-  "description": "Resonar · app web de entrenamiento vocal (Cloudflare Worker «vocal»)",
+  "description": "Resonar \u00b7 app web de entrenamiento vocal (Cloudflare Worker \u00abvocal\u00bb)",
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs production",
@@ -10,7 +10,8 @@
     "dev": "node scripts/build.mjs staging && wrangler dev",
     "deploy": "node scripts/build.mjs production && wrangler deploy",
     "deploy:staging": "node scripts/build.mjs staging && wrangler deploy --env staging",
-    "check": "node scripts/check.mjs"
+    "check": "node scripts/check.mjs",
+    "bench": "node scripts/bench/index.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"

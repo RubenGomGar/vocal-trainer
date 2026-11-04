@@ -467,6 +467,12 @@ input.fbm{width:100%;font:inherit;font-size:16px;padding:12px 14px;border-radius
     <div><b id="lAct">—</b><span>Actor 3–4 kHz (dB)</span></div>
     <div><b id="lH12">—</b><span>H1 − H2 (dB)</span></div>
   </div>
+  <div class="card" id="dgCard">
+    <div class="row"><b class="sp">🔧 Diagnóstico del detector</b><button class="btn" id="dgRec">⏺ Grabar 10 s</button></div>
+    <div class="small mute" id="dgStats" style="margin-top:6px;line-height:1.5">—</div>
+    <div class="small mute" id="dgMsg" style="margin-top:6px"></div>
+    <p class="small mute" style="margin:6px 0 0">Canta una nota larga (o una frase) mientras graba. Se guardan dos archivos en tu móvil, el audio y las lecturas, para que Ruben pueda analizarlos. No se sube nada.</p>
+  </div>
   <div class="card small mute" style="line-height:1.5">
     <b style="color:var(--ink)">Cómo leerlo</b><br>
     · <b>Vibrato</b>: sano en clásico ≈ 4,5–6,5 Hz y 50–120 cents de pico a pico. Lento y ancho = <i>wobble</i>; rápido y estrecho = <i>bleat</i>.<br>
@@ -528,6 +534,8 @@ input.fbm{width:100%;font:inherit;font-size:16px;padding:12px 14px;border-radius
   <div class="opt"><div>Nombres de nota</div><div class="seg" data-pref="names"><button data-v="sol">Do Re Mi</button><button data-v="am">C D E</button></div></div>
   <div class="opt"><div>Nota guía<div class="small mute">«Continua» solo con auriculares</div></div><div class="seg" data-pref="guide"><button data-v="inicio">Inicio</button><button data-v="continua">Continua</button><button data-v="no">No</button></div></div>
   <div class="opt"><div>Estabilizar la lectura<div class="small mute">Más = la nota se mueve menos y muestra el centro de tu vibrato</div></div><div class="seg" data-pref="stab"><button data-v="bajo">Poco</button><button data-v="medio">Normal</button><button data-v="alto">Mucho</button></div></div>
+  <div class="opt"><div>Volumen automático del micro<div class="small mute">Déjalo en No salvo que el micro te oiga muy bajo</div></div><div class="seg" data-pref="agc"><button data-v="0">No</button><button data-v="1">Sí</button></div></div>
+  <div class="opt"><div>Motor de análisis<div class="small mute">«Nuevo» analiza 100 veces por segundo en el hilo de audio</div></div><div class="seg" data-pref="engine"><button data-v="nuevo">Nuevo</button><button data-v="old">Anterior</button></div></div>
   <div class="opt"><div>Antes de cada repetición<div class="small mute">Con «Inicio»: escuchar toda la frase o solo la primera nota</div></div><div class="seg" data-pref="pre"><button data-v="frase">Frase + nota</button><button data-v="nota">Solo la nota</button></div></div>
   <div class="opt"><div>Metrónomo<div class="small mute">En los ejercicios con pulso</div></div><div class="seg" data-pref="metro"><button data-v="1">Sí</button><button data-v="0">No</button></div></div>
   <div class="opt"><div>Volumen<div class="small mute">En iPhone, quita el modo silencio</div></div><input type="range" min="0" max="1" step="0.05" id="setVol"></div>
@@ -588,7 +596,7 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 let toastT;function toast(m,ms=2600){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),ms)}
 const SOL=['Do','Do#','Re','Re#','Mi','Fa','Fa#','Sol','Sol#','La','La#','Si'],AM=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const hz2m=f=>69+12*Math.log2(f/440), m2hz=m=>440*Math.pow(2,(m-69)/12);
-let prefs=Object.assign({tol:50,names:'sol',guide:'inicio',metro:'1',vol:.7,demo:'0',unlock:'0',speed:'lenta',sovt:'labios',pre:'frase',stab:'medio'},LS.get('prefs',{}));
+let prefs=Object.assign({tol:50,names:'sol',guide:'inicio',metro:'1',vol:.7,demo:'0',unlock:'0',speed:'lenta',sovt:'labios',pre:'frase',stab:'medio',agc:'0',engine:'nuevo'},LS.get('prefs',{}));
 const SPEEDS={muy:2.5,lenta:1.8,media:1.35,normal:1};
 function savePrefs(){LS.set('prefs',prefs)}
 function nn(m){if(m==null)return'—';m=Math.round(m);return(prefs.names==='am'?AM:SOL)[(m%12+12)%12]+(Math.floor(m/12)-1)}
@@ -953,7 +961,7 @@ async function ensureCtx(){
     try{if(navigator.audioSession)navigator.audioSession.type='play-and-record'}catch(e){}
     AU.ctx=new C();const comp=AU.ctx.createDynamicsCompressor();AU.master=AU.ctx.createGain();AU.master.gain.value=prefs.vol;AU.master.connect(comp);comp.connect(AU.ctx.destination);
     AU.an=AU.ctx.createAnalyser();AU.an.fftSize=4096;AU.an.smoothingTimeConstant=.45;AU.tbuf=new Float32Array(4096);AU.fbuf=new Float32Array(2048);
-    const sink=AU.ctx.createGain();sink.gain.value=0;AU.an.connect(sink);sink.connect(AU.ctx.destination)}
+    const sink=AU.ctx.createGain();sink.gain.value=0;AU.an.connect(sink);sink.connect(AU.ctx.destination);AU.sink=sink;await pwInit()}
   if(AU.ctx.state==='suspended'){try{await AU.ctx.resume()}catch(e){}}
 }
 function setVol(v){prefs.vol=v;savePrefs();if(AU.master)AU.master.gain.value=v}
@@ -963,8 +971,8 @@ async function startInput(){
   if(AU.mode==='mic'&&AU.stream)return;
   stopSim();
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){const e=new Error('nomedia');e.name='NoMedia';throw e}
-  const st=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:true}});
-  AU.stream=st;const src=AU.ctx.createMediaStreamSource(st);src.connect(AU.an);AU.mode='mic';AU.ready=true;
+  const st=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:prefs.agc==='1',channelCount:1}});
+  AU.stream=st;const src=AU.ctx.createMediaStreamSource(st);src.connect(AU.an);if(PW.node)src.connect(PW.node);AU.src=src;AU.mode='mic';AU.ready=true;
 }
 function micErrorMsg(e){const inFrame=(()=>{try{return window.self!==window.top}catch(x){return true}})();const n=e&&e.name;
   if(n==='NoMedia'){if(inFrame)return'Estás dentro de la vista de Claude: aquí el micrófono está siempre bloqueado. Abre la app en su propio enlace <b>https</b> (mira «Cómo usarla de verdad») o usa el modo demo.';
@@ -988,7 +996,7 @@ function guideSet(m){if(!AU.guide)return;const t=AU.ctx.currentTime;if(m==null){
 function guideOff(){if(AU.guide){try{AU.guide.o.stop()}catch(e){}AU.guide=null}}
 
 /* --- voz simulada (modo demo) --- */
-function startSim(){if(AU.sim||!AU.ctx)return;const c=AU.ctx,o=c.createOscillator();o.type='sawtooth';const lp=c.createBiquadFilter();lp.type='lowpass';lp.frequency.value=1800;lp.Q.value=.7;const g=c.createGain();g.gain.value=0;o.connect(lp);lp.connect(g);g.connect(AU.an);o.start();AU.sim={o,lp,g,drift:0,ph:0}}
+function startSim(){if(AU.sim||!AU.ctx)return;const c=AU.ctx,o=c.createOscillator();o.type='sawtooth';const lp=c.createBiquadFilter();lp.type='lowpass';lp.frequency.value=1800;lp.Q.value=.7;const g=c.createGain();g.gain.value=0;o.connect(lp);lp.connect(g);g.connect(AU.an);if(PW.node)g.connect(PW.node);o.start();AU.sim={o,lp,g,drift:0,ph:0}}
 function stopSim(){if(AU.sim){try{AU.sim.o.stop()}catch(e){}AU.sim=null}}
 function simSet(p){const S=AU.sim;if(!S)return;const t=AU.ctx.currentTime;
   if(!p||p.m==null){S.g.gain.setTargetAtTime(0,t,.02);return}
@@ -1037,15 +1045,53 @@ function pvUpdate(m,t,conf){const WIN=STAB_WIN[prefs.stab]||STAB_WIN.medio;
   if(PV.note==null)PV.note=r;
   else if(r!==PV.note){const off=Math.abs(PV.disp-PV.note);if(off>1){PV.note=r;PV.cand=null}else if(off>.6){if(PV.cand!==r){PV.cand=r;PV.candT=t}else if(t-PV.candT>=.12){PV.note=r;PV.cand=null}}else PV.cand=null}
   else PV.cand=null}
+/* --- captura v2: análisis en el hilo de audio (AudioWorklet), 100 lecturas/s con marca de tiempo de audio.
+   Si el navegador no lo admite o deja de responder, se vuelve al método anterior (AnalyserNode por fotograma). --- */
+const PW={node:null,ok:false,q:[],last:null,cnt:0,cntT:0,rate:0,lastMsg:0,rec:null,prevSent:null,fails:0};
+function pwSource(){return `const YB={x:null,d:null,c:null};const m2hz=${m2hz.toString()};
+${yin2.toString()}
+class RP extends AudioWorkletProcessor{constructor(){super();this.N=4096;this.buf=new Float32Array(4096);this.lin=new Float32Array(4096);this.w=0;this.n=0;this.cnt=0;this.hop=Math.round(sampleRate/100);this.prev=null;this.rec=false;
+  this.port.onmessage=e=>{const d=e.data;if('prev' in d)this.prev=d.prev;if('rec' in d)this.rec=d.rec}}
+ process(inputs){const ch=inputs[0]&&inputs[0][0];if(!ch)return true;const N=this.N;
+  for(let i=0;i<ch.length;i++){this.buf[this.w]=ch[i];this.w=(this.w+1)%N}
+  if(this.rec)this.port.postMessage({rec:ch.slice(0)});
+  this.n+=ch.length;this.cnt+=ch.length;
+  if(this.cnt>=this.hop&&this.n>=N){this.cnt-=this.hop;const L=this.lin,w=this.w;for(let i=0;i<N;i++)L[i]=this.buf[(w+i)%N];
+    let s=0;for(let i=N/2;i<N;i++)s+=L[i]*L[i];const rms=Math.sqrt(s/(N/2));let r=null;
+    if(rms>.0006){try{r=yin2(L,sampleRate,this.prev)}catch(e){r=null}}
+    this.port.postMessage({t:currentTime,rms,f:r?r.f:0,conf:r?r.conf:0})}
+  return true}}
+registerProcessor('resonar-pitch',RP);`}
+async function pwInit(){if(PW.node||prefs.engine==='old')return;const c=AU.ctx;if(!c.audioWorklet||typeof AudioWorkletNode==='undefined')return;
+  try{const url=URL.createObjectURL(new Blob([pwSource()],{type:'application/javascript'}));await c.audioWorklet.addModule(url);URL.revokeObjectURL(url);
+    const n=new AudioWorkletNode(c,'resonar-pitch',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[1]});n.connect(AU.sink);
+    n.port.onmessage=e=>{const d=e.data;if(d.rec){if(PW.rec)PW.rec.push(d.rec);return}PW.q.push(d);if(PW.q.length>200)PW.q.splice(0,100);PW.lastMsg=performance.now();PW.cnt++};
+    PW.node=n;PW.ok=true;PW.lastMsg=performance.now();if(AU.src)AU.src.connect(n);if(AU.sim)AU.sim.g.connect(n)}
+  catch(e){console.warn('worklet',e);PW.ok=false;PW.node=null}}
+function pwAlive(){if(!PW.ok)return false;if(AU.ctx&&AU.ctx.state!=='running')return true;
+  if(performance.now()-PW.lastMsg>800){PW.fails++;if(PW.fails>3){PW.ok=false;console.warn('worklet sin datos: vuelvo al método anterior')}return false}PW.fails=0;return true}
+let fpsN=0,fpsT=0;AU.fps=0;
 function analyze(wantSpec){
-  const out={m:null,rms:0,ring:null,act:null,h12:null,disp:null,note:null,conf:0};if(!AU.an)return out;
+  const out={m:null,rms:0,ring:null,act:null,h12:null,disp:null,note:null,conf:0,batch:[]};if(!AU.an)return out;
+  {const pn=performance.now();fpsN++;if(pn-fpsT>1000){AU.fps=fpsN*1000/(pn-fpsT);fpsN=0;fpsT=pn;PW.rate=PW.cnt*1000/Math.max(1,pn-PW.cntT);PW.cnt=0;PW.cntT=pn}}
+  if(PW.ok&&prefs.engine!=='old'&&pwAlive()){const nowP=performance.now()/1000,nowC=AU.ctx.currentTime;
+    for(const r of PW.q){AU.noise=r.rms<AU.noise?r.rms:Math.min(.05,AU.noise*1.0009+6e-7);const gate=AU.mode==='sim'?.004:Math.max(prefs.agc==='1'?.0035:.0015,AU.noise*3);
+      let m=null;if(r.rms>gate&&r.f>62&&r.f<1600)m=hz2m(r.f);
+      AU.mh.push(m);if(AU.mh.length>3)AU.mh.shift();const v=AU.mh.filter(x=>x!=null);if(m!=null&&v.length>=2){const md=median(v);if(Math.abs(m-md)>1.5)m=md}
+      const pt=nowP-(nowC-r.t);pvUpdate(pt<AU.ignoreUntil?null:m,pt,r.conf);
+      PW.last={m,rms:r.rms,conf:r.conf,disp:PW.disp=PV.disp,note:PV.disp!=null?PV.note:null};out.batch.push({pt,m,rms:r.rms,disp:PV.disp})}
+    PW.q.length=0;
+    const pv=PV.disp!=null&&PV.hist.length>=12?Math.round(PV.disp*10)/10:null;if(pv!==PW.prevSent){PW.prevSent=pv;PW.node.port.postMessage({prev:pv})}
+    if(PW.last){out.m=PW.last.m;out.rms=PW.last.rms;out.conf=PW.last.conf;out.disp=PV.disp;out.note=PV.disp!=null?PV.note:null}
+    if(wantSpec&&out.m!=null){AU.an.getFloatFrequencyData(AU.fbuf);Object.assign(out,specMetrics(AU.fbuf,AU.ctx.sampleRate/AU.an.fftSize,out.m))}
+    return out}
   AU.an.getFloatTimeDomainData(AU.tbuf);const b=AU.tbuf.subarray(2048);let s=0;for(let i=0;i<b.length;i++)s+=b[i]*b[i];const rms=Math.sqrt(s/b.length);out.rms=rms;
   AU.noise=rms<AU.noise?rms:Math.min(.05,AU.noise*1.0015+1e-6);
-  const gate=AU.mode==='sim'?.004:Math.max(.0035,AU.noise*3);
+  const gate=AU.mode==='sim'?.004:Math.max(prefs.agc==='1'?.0035:.0015,AU.noise*3);
   let m=null,conf=0;if(rms>gate){const r=yin2(AU.tbuf,AU.ctx.sampleRate,PV.disp!=null&&PV.hist.length>=12?PV.disp:null);if(r&&r.f>62&&r.f<1600){m=hz2m(r.f);conf=r.conf}}
   AU.mh.push(m);if(AU.mh.length>3)AU.mh.shift();
   const v=AU.mh.filter(x=>x!=null);if(m!=null&&v.length>=2){const md=median(v);if(Math.abs(m-md)>1.5)m=md}
-  out.m=m;out.conf=conf;const now=performance.now()/1000;pvUpdate(now<AU.ignoreUntil?null:m,now,conf);out.disp=PV.disp;out.note=PV.disp!=null?PV.note:null;
+  out.m=m;out.conf=conf;const now=performance.now()/1000;pvUpdate(now<AU.ignoreUntil?null:m,now,conf);out.disp=PV.disp;out.note=PV.disp!=null?PV.note:null;out.batch=[{pt:now,m,rms,disp:PV.disp}];
   if(wantSpec&&m!=null){AU.an.getFloatFrequencyData(AU.fbuf);Object.assign(out,specMetrics(AU.fbuf,AU.ctx.sampleRate/AU.an.fftSize,m))}
   return out}
 function specMetrics(F,bh,m){const mx=(lo,hi)=>{let v=-300;for(let i=Math.max(1,Math.floor(lo/bh));i<=Math.min(F.length-1,Math.ceil(hi/bh));i++)if(F[i]>v)v=F[i];return v};
@@ -1512,11 +1558,11 @@ $('#rgSave').onclick=()=>{prof.low=rg.lo;prof.high=rg.hi;saveProfiles();toast('R
 /* ================= laboratorio ================= */
 let labOn=false,labHist=[],labFrozen=false,labT0=0;
 async function openLab(){try{await startInput()}catch(e){openSetup(micErrorMsg(e));return}stopLoops();show('lab');labOn=true;labHist=[];labFrozen=false;$('#lFreeze').textContent='Congelar';labT0=performance.now()/1000;loopLab()}
-$('#lBack').onclick=()=>{stopLoops();goHome()};
+$('#lBack').onclick=()=>{if(DG.on)dgStop();stopLoops();goHome()};
 $('#lFreeze').onclick=()=>{labFrozen=!labFrozen;$('#lFreeze').textContent=labFrozen?'Seguir':'Congelar'};
 function loopLab(){if(!labOn)return;raf=requestAnimationFrame(loopLab);if(labFrozen)return;const t=performance.now()/1000-labT0;
   if(AU.mode==='sim'){const ph=t%12;simSet(ph<5?{m:profMid(),vib:ph>1.5,rate:5.6,ext:80,gain:.25,cut:ph<3?1500:4800}:ph<6?null:ph<11?{m:profMid()+4,vib:false,gain:.25,cut:2.05,cutRel:1,q:7}:null)}
-  const a=analyze(true);lastM=a.m;if(a.m!=null)addDose(1/60);labHist.push({t,m:a.m});while(labHist.length&&t-labHist[0].t>6)labHist.shift();
+  const a=analyze(true);lastM=a.m;dgUpdate(a);if(a.m!=null)addDose(1/60);labHist.push({t,m:a.m});while(labHist.length&&t-labHist[0].t>6)labHist.shift();
   const v=labHist.filter(x=>x.m!=null);$('#lNote').textContent=a.note!=null?nn(a.note):'—';
   const cents=a.disp!=null?(a.disp-a.note)*100:null;$('#lTune').style.left=(cents==null?50:clamp(50+cents,4,96))+'%';
   const rec=v.filter(x=>t-x.t<=2);const vs=rec.length>50?vibStats(rec,null):null;$('#lVib').textContent=vs&&vs.present?fmt(vs.rate)+' Hz · '+Math.round(vs.ext)+' c':'—';$('#lVibT').textContent=vs?vibLabel(vs):'—';
@@ -1926,7 +1972,10 @@ function sgLoop(){if(!SG.on)return;raf=requestAnimationFrame(sgLoop);
   if(AU.mode==='sim')simSet(playing?sgSim(vt):null);
   const a=analyze(false);lastM=a.m;
   if(playing){if(buf.length&&t<buf[buf.length-1].t-.5){while(buf.length&&buf[buf.length-1].t>=t)buf.pop()}
-    buf.push({t,m:a.m,rms:a.rms});if(a.m!=null)addDose(1/60);$('#sgHint').style.display='none'}
+    const pn=performance.now()/1000;
+    for(const r of a.batch){const tt=t-(pn-r.pt);const lp=buf[buf.length-1];if(lp&&tt<=lp.t)continue;let ms=r.m;if(r.m!=null&&lp&&lp.ms!=null&&tt-lp.t<.1&&Math.abs(r.m-lp.ms)<1)ms=lp.ms+(r.m-lp.ms)*(1-Math.exp(-(tt-lp.t)/.035));
+      buf.push({t:tt,m:r.m,ms,rms:r.rms,d:r.disp});if(r.m!=null)addDose(PW.ok?.01:1/60)}
+    $('#sgHint').style.display='none'}
   else if(performance.now()-SG.hintT>1800&&plKind()==='yt'&&SG.ytState!==2&&!buf.length)$('#sgHint').style.display='';
   if(performance.now()-SG.shiftT>1000&&SG.refMed!=null){SG.shiftT=performance.now();const v=SG.frames.concat(SG.secFrames).filter(f=>f.m!=null);if(v.length>60){const st=v.length>600?Math.floor(v.length/600):1;const ms=[];for(let i=0;i<v.length;i+=st)ms.push(v[i].m);SG.shift=12*Math.round((median(ms)-SG.refMed)/12)}}
   if(plKind()==='au'){const d=plDur();$('#auTime').textContent=mmss(vt)+(d?' / '+mmss(d):'');$('#auBar i').style.width=(d?vt/d*100:0)+'%'}
@@ -1937,24 +1986,25 @@ function sgSim(vt){if(SG.refNotes){const rn=refNoteAt(vt+SG.off);if(!rn||vt+SG.o
   return simSong(vt%(SONG_T+1))}
 function sgTarget(t){const rn=SG.refNotes?refNoteAt(t+SG.off):null;return rn?rn.q+SG.refOff:null}
 function sgNeedle(m,t,playing,note){const nd=$('#sgNeedle'),tx=$('#sgTxt');
-  if(m==null){$('#sgNote').textContent='—';nd.style.opacity=.25;nd.style.left='50%';tx.textContent=playing?'Canta…':'En pausa';tx.style.color='';return}
+  if(m==null){SG.nd=null;$('#sgNote').textContent='—';nd.style.opacity=.25;nd.style.left='50%';tx.textContent=playing?'Canta…':'En pausa';tx.style.color='';return}
   let d,want=null;const tg=sgTarget(t);
   if(tg!=null){const dd=fold(m-tg);d=dd*100;want=Math.round(m-dd)}else{const g=SG.ref?SG.refOff:0;d=(m-Math.round(m-g)-g)*100}
+  SG.nd=SG.nd==null||Math.abs(d-SG.nd)>60?d:SG.nd+(d-SG.nd)*.2;d=SG.nd;
   $('#sgNote').textContent=nn(note!=null?note:m);nd.style.opacity=1;nd.style.left=(50+clamp(d,-60,60)/120*100)+'%';const ad=Math.abs(d);
   nd.style.background=ad<=15?'var(--ok)':ad<=35?'var(--warn)':'var(--bad)';
   if(want!=null&&ad>60){tx.textContent='Busca '+nn(want)+(d>0?' ↓':' ↑');tx.style.color='var(--bad)'}
-  else{tx.textContent=ad<=15?'¡Afinado!':(d>0?(ad>35?'Alto':'Un poco alto'):(ad>35?'Bajo':'Un poco bajo'))+' '+(d>0?'+':'−')+Math.round(ad)+' c';tx.style.color=ad<=15?'var(--ok)':ad<=35?'var(--warn)':'var(--bad)'}}
+  else{tx.textContent=ad<=15?'¡Afinado!':(d>0?(ad>35?'Alto':'Un poco alto'):(ad>35?'Bajo':'Un poco bajo'))+' '+(d>0?'+':'−')+5*Math.round(ad/5)+' c';tx.style.color=ad<=15?'var(--ok)':ad<=35?'var(--warn)':'var(--bad)'}}
 function sgDrawLive(vt){const cv=$('#sgcv'),{g,w,h}=fit(cv);g.clearRect(0,0,w,h);const A=vt-6,B=vt+3,X=t=>(t-A)/(B-A)*w,lat=sgLat();
   const buf=SG.mode==='sec'?SG.secFrames:SG.frames;const rec=[];for(let i=buf.length-1;i>=0&&rec.length<240;i--)if(buf[i].m!=null)rec.push(buf[i].m);
   let tg=rec.length>20?median(rec):null;if(tg==null&&SG.refMed!=null){const n=refNoteAt(vt+SG.off);tg=n?n.q+SG.refOff+SG.shift:SG.refMed+SG.shift}if(tg==null)tg=profMid();
-  SG.center=SG.center==null?tg:SG.center+(tg-SG.center)*.03;const c=SG.center,lo=c-8,hi=c+8,Y=m=>h-6-(m-lo)/(hi-lo)*(h-12);
+  SG.center=SG.center==null?tg:SG.center+(tg-SG.center)*.03;const c=SG.center,lo=c-10,hi=c+10,Y=m=>h-6-(m-lo)/(hi-lo)*(h-12);
   g.font='11px Fredoka,sans-serif';const key=SG.keyRef;
   for(let m=Math.ceil(lo);m<=hi;m++){const pc=((m%12)+12)%12;g.strokeStyle=key&&key.scale.has(pc)?'#ffffff16':'#ffffff07';g.beginPath();g.moveTo(0,Y(m));g.lineTo(w,Y(m));g.stroke();if([0,4,7].includes(pc)){g.fillStyle='#6f69a3';g.fillText(nn(m),4,Y(m)-2)}}
   if(SG.refNotes){const now=vt-lat+SG.off;for(const n of SG.refNotes){if(n.t1<A+SG.off||n.t0>B+SG.off)continue;const x0=X(n.t0-SG.off),x1=X(n.t1-SG.off),m=n.q+SG.refOff+SG.shift,act=now>=n.t0&&now<=n.t1;
     g.fillStyle=act?'#6ea8ffdd':'#6ea8ff66';const y=Y(m)-5,ww=Math.max(3,x1-x0);g.beginPath();if(g.roundRect)g.roundRect(x0,y,ww,10,5);else g.rect(x0,y,ww,10);g.fill()}}
   const nx=X(vt-lat);g.strokeStyle='#ffffff40';g.lineWidth=1.5;g.beginPath();g.moveTo(nx,0);g.lineTo(nx,h);g.stroke();
-  g.strokeStyle='#ff7ab8';g.lineWidth=3;g.lineCap='round';let p=null,last=null;for(let i=Math.max(0,buf.length-700);i<buf.length;i++){const q=buf[i];if(q.m==null||q.t<A){p=null;continue}if(p&&q.t-p.t<.12){g.beginPath();g.moveTo(X(p.t),Y(p.m));g.lineTo(X(q.t),Y(q.m));g.stroke()}p=q;last=q}
-  if(last&&vt-lat-last.t<.15){g.fillStyle='#ff7ab8';g.beginPath();g.arc(X(last.t),Y(last.m),6,0,7);g.fill()}}
+  g.strokeStyle='#ff7ab8';g.lineWidth=3;g.lineCap='round';let p=null,last=null;for(let i=Math.max(0,buf.length-700);i<buf.length;i++){const q=buf[i];if(q.m==null||q.t<A){p=null;continue}if(p&&q.t-p.t<.12){g.beginPath();g.moveTo(X(p.t),Y(p.ms??p.m));g.lineTo(X(q.t),Y(q.ms??q.m));g.stroke()}p=q;last=q}
+  if(last&&vt-lat-last.t<.15){const dm=last.d??last.ms??last.m;g.fillStyle='#ff7ab8';g.beginPath();g.arc(X(last.t),Y(dm),6,0,7);g.fill()}}
 
 /* --- final y resultados --- */
 function sgStop(){SG.on=false;cancelAnimationFrame(raf);simSet(null);sgWake(false);plPause()}
@@ -2126,6 +2176,32 @@ $('#fbSend').onclick=async()=>{const text=$('#fbText').value.trim(),mail=$('#fbM
     if(r.status===429)throw new Error('Has enviado muchos comentarios seguidos. Prueba dentro de un rato.');if(!r.ok)throw new Error('srv');
     $('#fbText').value='';$('#fbMsg').textContent='';closeSheets();toast('¡Gracias! Lo hemos recibido. 💜')}
   catch(e){$('#fbSend').disabled=false;$('#fbMsg').textContent=e.message&&e.message.length>10?e.message:(HOSTED?'No se ha podido enviar. Comprueba la conexión y vuelve a probar.':'Desde esta vista previa no se puede enviar: hazlo desde la web publicada.')}};
+
+
+/* --- diagnóstico del detector (fase 0): cifras en vivo y grabación de 10 s con sus lecturas --- */
+const DG={on:false,t0:0,read:[],fps:[],stat:[],lastUi:0};
+function dgUpdate(a){const now=performance.now()/1000;
+  for(const r of a.batch){DG.stat.push({t:r.pt,m:r.m,d:r.disp});if(DG.on)DG.read.push({t:+(r.pt-DG.t0).toFixed(4),m:r.m==null?null:+r.m.toFixed(3),d:r.disp==null?null:+r.disp.toFixed(3),rms:+r.rms.toFixed(5)})}
+  while(DG.stat.length&&now-DG.stat[0].t>1.5)DG.stat.shift();
+  if(DG.on){DG.fps.push(+(now-DG.t0).toFixed(4));if(now-DG.t0>=10)dgStop()}
+  if(now-DG.lastUi<.5)return;DG.lastUi=now;
+  const v=DG.stat.filter(x=>x.d!=null),voiced=DG.stat.length?DG.stat.filter(x=>x.m!=null).length/DG.stat.length:0;
+  let jit=null;if(v.length>20){const ds=[];for(let i=1;i<v.length;i++)if(Math.abs(v[i].d-v[i-1].d)<.5)ds.push((v[i].d-v[i-1].d)*100);if(ds.length>10)jit=std(ds)}
+  $('#dgStats').innerHTML=`Motor: <b>${PW.ok&&prefs.engine!=='old'?'nuevo (hilo de audio)':'anterior (por fotograma)'}</b> · ${Math.round(PW.ok&&prefs.engine!=='old'?PW.rate:AU.fps)} lecturas/s · pantalla ${Math.round(AU.fps)} fps<br>Temblor de la lectura: <b>${jit==null?'—':fmt(jit,1)+' c'}</b> · con voz ${Math.round(voiced*100)} % · micro ${AU.mode==='sim'?'simulado':prefs.agc==='1'?'con volumen automático':'sin volumen automático'}`}
+function dgStart(){if(!(PW.ok&&prefs.engine!=='old')){$('#dgMsg').textContent='La grabación necesita el motor nuevo (Ajustes → Motor de análisis → Nuevo).';return}
+  DG.on=true;DG.t0=performance.now()/1000;DG.read=[];DG.fps=[];PW.rec=[];PW.node.port.postMessage({rec:true});$('#dgRec').textContent='⏹ Grabando…';$('#dgMsg').textContent='Canta ahora: 10 segundos.'}
+function wavFrom(chunks,sr){let n=0;for(const c of chunks)n+=c.length;const b=new ArrayBuffer(44+n*2),v=new DataView(b);const w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i))};
+  w(0,'RIFF');v.setUint32(4,36+n*2,true);w(8,'WAVEfmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,n*2,true);
+  let o=44;for(const c of chunks)for(let i=0;i<c.length;i++){v.setInt16(o,Math.max(-32768,Math.min(32767,Math.round(c[i]*32767))),true);o+=2}return new Blob([b],{type:'audio/wav'})}
+async function dgStop(){DG.on=false;PW.node.port.postMessage({rec:false});$('#dgRec').textContent='⏺ Grabar 10 s';const chunks=PW.rec||[];PW.rec=null;
+  const stamp=new Date().toISOString().slice(0,16).replace(/[-:T]/g,'');
+  const wav=new File([wavFrom(chunks,AU.ctx.sampleRate)],`resonar-diag-${stamp}.wav`,{type:'audio/wav'});
+  const info={app:'resonar-diag',ver:APP_VER,date:new Date().toISOString(),ua:navigator.userAgent,sr:AU.ctx.sampleRate,mode:AU.mode,agc:prefs.agc,stab:prefs.stab,sex:prof?prof.sex:null,range:prof?[prof.low,prof.high]:null,
+    note:'t en s desde el inicio; m = lectura cruda (MIDI), d = lectura estable, rms = volumen',fps:DG.fps.length/10,rate:DG.read.length/10,readings:DG.read,frames:DG.fps};
+  const js=new File([JSON.stringify(info)],`resonar-diag-${stamp}.json`,{type:'application/json'});
+  try{if(navigator.canShare&&navigator.canShare({files:[wav,js]})&&(isIOS()||/Android/.test(navigator.userAgent))){await navigator.share({files:[wav,js],title:'Diagnóstico de Resonar'});$('#dgMsg').textContent='Listo. Mándale los dos archivos a Ruben.';return}}catch(e){if(e&&e.name==='AbortError'){$('#dgMsg').textContent='Cancelado.';return}}
+  try{for(const f of [wav,js]){const u=URL.createObjectURL(f),a=document.createElement('a');a.href=u;a.download=f.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000)}$('#dgMsg').textContent='Descargados: '+wav.name+' y '+js.name}catch(e){$('#dgMsg').textContent='Este navegador no deja guardar archivos aquí.'}}
+$('#dgRec').onclick=()=>{if(DG.on)dgStop();else dgStart()};
 
 /* ================= arranque ================= */
 renderAvs();renderPfSex();

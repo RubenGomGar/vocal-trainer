@@ -4,3 +4,5 @@ dist/
 .dev.vars
 .env
 .DS_Store
+# grabaciones reales privadas: no se suben
+bench/real/

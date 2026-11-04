@@ -11,3 +11,6 @@ App web de entrenamiento vocal en español, un solo `public/index.html` (HTML+CS
 - Prueba con Playwright en viewport de móvil y modo demo (`localStorage rsn_prefs = {"demo":"1"}`), sin errores en consola.
 - Textos de la interfaz en español de España, tono cercano.
 - Comentarios y errores de usuarios: `/api/admin?key=ADMIN_KEY&kind=fb|err&format=json` (KV `RESONAR`).
+- Detector de tono: `yin2` corre en un AudioWorklet (100 lecturas/s, `PW`), con respaldo al AnalyserNode (`prefs.engine`). Lectura estable para pantalla: `PV`/`pvUpdate`; la puntuación usa `m` crudo.
+- Banco de pruebas: `npm run bench` (carga las funciones reales de `public/index.html`). Tras tocar el detector, el estabilizador o el extractor de melodía, compáralo antes/después y no empeores ninguna fila.
+- Grabaciones reales: Laboratorio → Diagnóstico → «Grabar 10 s» descarga `.wav` + `.json`; se copian en `bench/real/` (ignorada por git, privada) y `node scripts/bench/real.mjs` las analiza.
