@@ -522,6 +522,7 @@ input.fbm{width:100%;font:inherit;font-size:16px;padding:12px 14px;border-radius
   <div class="opt"><div>Velocidad de escalas<div class="small mute">Notas cortas y pausas</div></div><div class="seg" data-pref="speed"><button data-v="muy">🐢</button><button data-v="lenta">Lenta</button><button data-v="media">Media</button><button data-v="normal">Rápida</button></div></div>
   <div class="opt"><div>Nombres de nota</div><div class="seg" data-pref="names"><button data-v="sol">Do Re Mi</button><button data-v="am">C D E</button></div></div>
   <div class="opt"><div>Nota guía<div class="small mute">«Continua» solo con auriculares</div></div><div class="seg" data-pref="guide"><button data-v="inicio">Inicio</button><button data-v="continua">Continua</button><button data-v="no">No</button></div></div>
+  <div class="opt"><div>Estabilizar la lectura<div class="small mute">Más = la nota se mueve menos y muestra el centro de tu vibrato</div></div><div class="seg" data-pref="stab"><button data-v="bajo">Poco</button><button data-v="medio">Normal</button><button data-v="alto">Mucho</button></div></div>
   <div class="opt"><div>Antes de cada repetición<div class="small mute">Con «Inicio»: escuchar toda la frase o solo la primera nota</div></div><div class="seg" data-pref="pre"><button data-v="frase">Frase + nota</button><button data-v="nota">Solo la nota</button></div></div>
   <div class="opt"><div>Metrónomo<div class="small mute">En los ejercicios con pulso</div></div><div class="seg" data-pref="metro"><button data-v="1">Sí</button><button data-v="0">No</button></div></div>
   <div class="opt"><div>Volumen<div class="small mute">En iPhone, quita el modo silencio</div></div><input type="range" min="0" max="1" step="0.05" id="setVol"></div>
@@ -582,7 +583,7 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 let toastT;function toast(m,ms=2600){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),ms)}
 const SOL=['Do','Do#','Re','Re#','Mi','Fa','Fa#','Sol','Sol#','La','La#','Si'],AM=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const hz2m=f=>69+12*Math.log2(f/440), m2hz=m=>440*Math.pow(2,(m-69)/12);
-let prefs=Object.assign({tol:50,names:'sol',guide:'inicio',metro:'1',vol:.7,demo:'0',unlock:'0',speed:'lenta',sovt:'labios',pre:'frase'},LS.get('prefs',{}));
+let prefs=Object.assign({tol:50,names:'sol',guide:'inicio',metro:'1',vol:.7,demo:'0',unlock:'0',speed:'lenta',sovt:'labios',pre:'frase',stab:'medio'},LS.get('prefs',{}));
 const SPEEDS={muy:2.5,lenta:1.8,media:1.35,normal:1};
 function savePrefs(){LS.set('prefs',prefs)}
 function nn(m){if(m==null)return'—';m=Math.round(m);return(prefs.names==='am'?AM:SOL)[(m%12+12)%12]+(Math.floor(m/12)-1)}
@@ -1000,15 +1001,46 @@ function yin(b,sr){const W=b.length>>1,tMin=Math.floor(sr/1600),tMax=Math.min(W-
   let p=-1;for(let t=tMin;t<=tMax;t++){if(c[t]<.15){while(t+1<=tMax&&c[t+1]<c[t])t++;p=t;break}}
   if(p<0){let mn=1;for(let t=tMin;t<=tMax;t++)if(c[t]<mn){mn=c[t];p=t}if(mn>.3)return null}
   const a=c[p-1],m=c[p],z=c[p+1],den=a-2*m+z;return sr/(p+(den?(a-z)/(2*den):0))}
+/* --- detector de tono v2: YIN sobre señal diezmada ×2 (ventana de 85 ms con el mismo coste), interpolación sobre d,
+   preferencia por la octava alta y seguimiento de octava con la nota estable anterior --- */
+const YB={x:null,d:null,c:null};
+function yin2(buf,sr,prevM){const n=buf.length>>1;if(!YB.x||YB.x.length!==n){YB.x=new Float32Array(n)}const x=YB.x;
+  for(let i=0;i<n;i++){const j=2*i;x[i]=.25*(j?buf[j-1]:buf[j])+.5*buf[j]+.25*(j+1<buf.length?buf[j+1]:buf[j])}
+  let mu=0;for(let i=0;i<n;i++)mu+=x[i];mu/=n;for(let i=0;i<n;i++)x[i]-=mu;
+  const fs=sr/2,W=n>>1,tMin=Math.max(2,Math.floor(fs/1600)),tMax=Math.min(W-2,Math.floor(fs/62));
+  if(!YB.d||YB.d.length<tMax+2){YB.d=new Float32Array(tMax+2);YB.c=new Float32Array(tMax+2)}const d=YB.d,c=YB.c;
+  for(let t=1;t<=tMax+1;t++){let s=0;for(let i=0;i<W;i++){const q=x[i]-x[i+t];s+=q*q}d[t]=s}
+  let run=0;c[0]=1;for(let t=1;t<=tMax+1;t++){run+=d[t];c[t]=run?d[t]*t/run:1}
+  let p=-1;for(let t=tMin;t<=tMax;t++){if(c[t]<.15){while(t+1<=tMax&&c[t+1]<c[t])t++;p=t;break}}
+  if(p<0){let mn=1;for(let t=tMin;t<=tMax;t++)if(c[t]<mn)mn=c[t];if(mn>.35)return null;
+    for(let t=tMin+1;t<tMax;t++){if(c[t]<=c[t-1]&&c[t]<=c[t+1]&&c[t]<mn+.08){p=t;break}}if(p<0)return null}
+  if(prevM!=null){const pPrev=fs/m2hz(prevM),ratio=pPrev/p,near=k=>Math.abs(Math.log2(ratio/k))<.06;
+    if(near(2)||near(.5)){const q0=Math.round(pPrev);let b=-1;for(let k=q0-2;k<=q0+2;k++)if(k>tMin&&k<tMax&&(b<0||c[k]<c[b]))b=k;if(b>0&&c[b]<.3&&c[b]<c[p]+.05)p=b}}
+  let q=p;if(d[p-1]<d[q])q=p-1;if(d[p+1]<d[q])q=p+1;if(q<=1||q>=tMax+1)q=p;
+  const a=d[q-1],mm=d[q],z=d[q+1],den=a-2*mm+z;let off=den>0?(a-z)/(2*den):0;if(Math.abs(off)>1)off=0;
+  return{f:fs/(q+off),conf:1-c[p]}}
+/* --- lectura estable para pantalla: centro de la nota (también con vibrato) y nombre con histéresis --- */
+const STAB_WIN={bajo:.12,medio:.26,alto:.4};
+const PV={hist:[],note:null,disp:null,cand:null,candT:0,last:null};
+function pvReset(){PV.hist.length=0;PV.note=null;PV.disp=null;PV.cand=null;PV.last=null}
+function pvUpdate(m,t,conf){const WIN=STAB_WIN[prefs.stab]||STAB_WIN.medio;
+  if(m==null){if(PV.last!=null&&t-PV.last>.18){PV.disp=null;PV.hist.length=0}if(PV.last!=null&&t-PV.last>.6)PV.note=null;return}
+  PV.last=t;if(PV.disp!=null&&Math.abs(m-PV.disp)>1.5){const rec=PV.hist.filter(h=>t-h.t<.08);if(rec.length>=3&&rec.every(h=>Math.abs(h.m-m)<1))PV.hist=rec}
+  PV.hist.push({t,m,w:Math.max(.2,conf||1)});while(PV.hist.length&&t-PV.hist[0].t>WIN)PV.hist.shift();
+  const md=median(PV.hist.map(h=>h.m));let s=0,sw=0;for(const h of PV.hist)if(Math.abs(h.m-md)<=1.5){s+=h.m*h.w;sw+=h.w}PV.disp=sw?s/sw:m;
+  const r=Math.round(PV.disp);
+  if(PV.note==null)PV.note=r;
+  else if(r!==PV.note){const off=Math.abs(PV.disp-PV.note);if(off>1){PV.note=r;PV.cand=null}else if(off>.6){if(PV.cand!==r){PV.cand=r;PV.candT=t}else if(t-PV.candT>=.12){PV.note=r;PV.cand=null}}else PV.cand=null}
+  else PV.cand=null}
 function analyze(wantSpec){
-  const out={m:null,rms:0,ring:null,act:null,h12:null};if(!AU.an)return out;
+  const out={m:null,rms:0,ring:null,act:null,h12:null,disp:null,note:null,conf:0};if(!AU.an)return out;
   AU.an.getFloatTimeDomainData(AU.tbuf);const b=AU.tbuf.subarray(2048);let s=0;for(let i=0;i<b.length;i++)s+=b[i]*b[i];const rms=Math.sqrt(s/b.length);out.rms=rms;
   AU.noise=rms<AU.noise?rms:Math.min(.05,AU.noise*1.0015+1e-6);
   const gate=AU.mode==='sim'?.004:Math.max(.0035,AU.noise*3);
-  let m=null;if(rms>gate){const f=yin(b,AU.ctx.sampleRate);if(f&&f>62&&f<1600)m=hz2m(f)}
+  let m=null,conf=0;if(rms>gate){const r=yin2(AU.tbuf,AU.ctx.sampleRate,PV.disp!=null&&PV.hist.length>=12?PV.disp:null);if(r&&r.f>62&&r.f<1600){m=hz2m(r.f);conf=r.conf}}
   AU.mh.push(m);if(AU.mh.length>3)AU.mh.shift();
   const v=AU.mh.filter(x=>x!=null);if(m!=null&&v.length>=2){const md=median(v);if(Math.abs(m-md)>1.5)m=md}
-  out.m=m;
+  out.m=m;out.conf=conf;const now=performance.now()/1000;pvUpdate(now<AU.ignoreUntil?null:m,now,conf);out.disp=PV.disp;out.note=PV.disp!=null?PV.note:null;
   if(wantSpec&&m!=null){AU.an.getFloatFrequencyData(AU.fbuf);Object.assign(out,specMetrics(AU.fbuf,AU.ctx.sampleRate/AU.an.fftSize,m))}
   return out}
 function specMetrics(F,bh,m){const mx=(lo,hi)=>{let v=-300;for(let i=Math.max(1,Math.floor(lo/bh));i<=Math.min(F.length-1,Math.ceil(hi/bh));i++)if(F[i]>v)v=F[i];return v};
@@ -1048,7 +1080,7 @@ let lastM=null;
 
 /* ================= juego ================= */
 let game=null,raf=0;
-function stopLoops(){cancelAnimationFrame(raf);raf=0;if(game){game.running=false}guideOff();simSet(null);labOn=false;tuOn=false;rgOn=false;suOn=false;raOn=false;if(typeof SG!=='undefined'&&SG)SG.on=false}
+function stopLoops(){pvReset();cancelAnimationFrame(raf);raf=0;if(game){game.running=false}guideOff();simSet(null);labOn=false;tuOn=false;rgOn=false;suOn=false;raOn=false;if(typeof SG!=='undefined'&&SG)SG.on=false}
 function buildTL(ex){
   const tr=ex.base===0&&ex.mod==='bar'?barTranspose():0;const base=ex.base==='mid'?profMid():ex.base==='zone'?zoneBase():tr;const segs=[];
   const f=ex.noSpeed?1:(SPEEDS[prefs.speed]||1);let scaled=false;
@@ -1143,8 +1175,8 @@ function loopGame(){raf=requestAnimationFrame(loopGame);const G=game;if(!G||!G.r
   // UI
   $('#gProg').style.width=clamp(t/tl.T*100,0,100)+'%';
   const dot=$('#gDot');dot.className='dot '+(a.m!=null?'on':'');if(AU.mode==='sim'&&a.m==null)dot.className='dot demo';
-  $('#gNote').textContent=a.m!=null?nn(a.m):'—';
-  $('#gTune').style.left=(err==null?50:clamp(50+err/100*50,4,96))+'%';
+  $('#gNote').textContent=a.note!=null&&!ign?nn(a.note):'—';
+  {const sg=seg&&seg.m0!=null?seg:null;const e2=a.disp!=null&&!ign?(sg?(a.disp-tgt(sg,t))*100:(a.disp-a.note)*100):null;$('#gTune').style.left=(e2==null?50:clamp(50+e2/100*50,4,96))+'%'}
   const nxt=tl.segs.find(s=>s.t0>t&&s.g!=='rest');
   if(t<0){const ct=G.cueTxt;$('#gNow').textContent=ct&&now<ct.ph?'🎧 Escucha la frase':ct&&now<ct.first?'🎧 Tu primera nota · '+nn(ct.m):'Prepárate…';$('#gNext').textContent=nxt?('Empieza: '+(nxt.v||'')+(nxt.m0!=null?' · '+nn(nxt.m0):'')):''}
   else if(seg){if(seg.g==='rest'){let tx='Respira';if(seg.cue){const r=t-seg.t0-seg.cueAt,c=seg.cue;tx=r<0?'Respira':r<c.firstAt?'🎧 Escucha la frase':r<c.firstAt+CUE.first?'🎧 Tu primera nota · '+nn(c.m):'Prepárate… ¡ahora tú!'}$('#gNow').textContent=tx;}else{$('#gNow').textContent=(seg.v||GOAL_INFO[seg.g][0])+(seg.m0!=null?' · '+nn(tgt(seg,t)):'');}
@@ -1374,8 +1406,8 @@ $('#hTuner').onclick=openTuner;
 function loopTuner(){if(!tuOn)return;raf=requestAnimationFrame(loopTuner);const now=performance.now()/1000,t=now-tu.t0;
   if(AU.mode==='sim'){const ph=t%9,b=tu.mode==='fija'?tu.tgt:Math.round(profMid());simSet(ph<4?{m:b-.35+.35*Math.min(1,ph/3)+.02*Math.sin(t*9),vib:false,gain:.25}:ph<4.6?null:ph<8.4?{m:b+2+.18,vib:true,rate:5.5,ext:60,gain:.25}:null)}
   const a=analyze(false),ign=now<AU.ignoreUntil;let m=ign?null:a.m;if(m!=null)addDose(1/60);
-  tu.ms.push(m);if(tu.ms.length>5)tu.ms.shift();const v=tu.ms.filter(x=>x!=null);const sm=v.length>=3?median(v):null;
-  let ref=null,c=null;if(sm!=null){ref=tu.mode==='fija'?tu.tgt:Math.round(sm);c=(sm-ref)*100}
+  const sm=ign?null:a.disp;
+  let ref=null,c=null;if(sm!=null){ref=tu.mode==='fija'?tu.tgt:a.note;c=(sm-ref)*100}
   const msg=$('#tMsg');
   if(c==null){$('#tNote').textContent=tu.mode==='fija'?nn(tu.tgt):'—';$('#tNote').style.color='';$('#tCents').textContent=tu.mode==='fija'?'Objetivo':'Canta una nota';msg.textContent=tu.mode==='fija'?'Canta '+nn(tu.tgt):'Canta una nota larga en «a» o «u»';msg.style.color='';tu.okT=0}
   else{const ac=Math.abs(c),col=ac<=10?'#42d392':ac<=25?'#ffd166':'#ff6b7a';
@@ -1464,8 +1496,8 @@ $('#lFreeze').onclick=()=>{labFrozen=!labFrozen;$('#lFreeze').textContent=labFro
 function loopLab(){if(!labOn)return;raf=requestAnimationFrame(loopLab);if(labFrozen)return;const t=performance.now()/1000-labT0;
   if(AU.mode==='sim'){const ph=t%12;simSet(ph<5?{m:profMid(),vib:ph>1.5,rate:5.6,ext:80,gain:.25,cut:ph<3?1500:4800}:ph<6?null:ph<11?{m:profMid()+4,vib:false,gain:.25,cut:2.05,cutRel:1,q:7}:null)}
   const a=analyze(true);lastM=a.m;if(a.m!=null)addDose(1/60);labHist.push({t,m:a.m});while(labHist.length&&t-labHist[0].t>6)labHist.shift();
-  const v=labHist.filter(x=>x.m!=null);$('#lNote').textContent=a.m!=null?nn(a.m):'—';
-  const cents=a.m!=null?(a.m-Math.round(a.m))*100:null;$('#lTune').style.left=(cents==null?50:clamp(50+cents,4,96))+'%';
+  const v=labHist.filter(x=>x.m!=null);$('#lNote').textContent=a.note!=null?nn(a.note):'—';
+  const cents=a.disp!=null?(a.disp-a.note)*100:null;$('#lTune').style.left=(cents==null?50:clamp(50+cents,4,96))+'%';
   const rec=v.filter(x=>t-x.t<=2);const vs=rec.length>50?vibStats(rec,null):null;$('#lVib').textContent=vs&&vs.present?fmt(vs.rate)+' Hz · '+Math.round(vs.ext)+' c':'—';$('#lVibT').textContent=vs?vibLabel(vs):'—';
   $('#lRing').textContent=a.ring!=null?fmt(a.ring,0):'—';$('#lAct').textContent=a.act!=null?fmt(a.act,0):'—';$('#lH12').textContent=a.h12!=null?fmt(a.h12,0):'—';
   const cv=$('#lcv'),{g,w,h}=fit(cv);g.clearRect(0,0,w,h);let lo,hi;if(v.length){const ms=v.map(x=>x.m);lo=Math.floor(Math.min(...ms))-2;hi=Math.ceil(Math.max(...ms))+2;if(hi-lo<8){const c=(hi+lo)/2;lo=c-4;hi=c+4}}else{lo=profMid()-6;hi=profMid()+6}
@@ -1825,16 +1857,16 @@ function sgLoop(){if(!SG.on)return;raf=requestAnimationFrame(sgLoop);
   if(performance.now()-SG.shiftT>1000&&SG.refMed!=null){SG.shiftT=performance.now();const v=SG.frames.concat(SG.secFrames).filter(f=>f.m!=null);if(v.length>60){const st=v.length>600?Math.floor(v.length/600):1;const ms=[];for(let i=0;i<v.length;i+=st)ms.push(v[i].m);SG.shift=12*Math.round((median(ms)-SG.refMed)/12)}}
   if(plKind()==='au'){const d=plDur();$('#auTime').textContent=mmss(vt)+(d?' / '+mmss(d):'');$('#auBar i').style.width=(d?vt/d*100:0)+'%'}
   if(SG.mode==='sec'&&playing&&vt>SG.sec.t1+1.2){sgEndSection();return}
-  sgDrawLive(vt);sgNeedle(a.m,t,playing)}
+  sgDrawLive(vt);sgNeedle(a.disp,t,playing,a.note)}
 function sgSim(vt){if(SG.refNotes){const rn=refNoteAt(vt+SG.off);if(!rn||vt+SG.off-rn.t0<.06)return null;const e=((Math.sin(rn.t0*12.9898)*43758.5453)%1+1)%1;
     return{m:rn.q+SG.refOff+SG.shift+(e-.5)*.5,vib:rn.dur>1&&vt+SG.off-rn.t0>.35,rate:5.5,ext:80,gain:.25,cut:3000}}
   return simSong(vt%(SONG_T+1))}
 function sgTarget(t){const rn=SG.refNotes?refNoteAt(t+SG.off):null;return rn?rn.q+SG.refOff:null}
-function sgNeedle(m,t,playing){const nd=$('#sgNeedle'),tx=$('#sgTxt');
+function sgNeedle(m,t,playing,note){const nd=$('#sgNeedle'),tx=$('#sgTxt');
   if(m==null){$('#sgNote').textContent='—';nd.style.opacity=.25;nd.style.left='50%';tx.textContent=playing?'Canta…':'En pausa';tx.style.color='';return}
   let d,want=null;const tg=sgTarget(t);
   if(tg!=null){const dd=fold(m-tg);d=dd*100;want=Math.round(m-dd)}else{const g=SG.ref?SG.refOff:0;d=(m-Math.round(m-g)-g)*100}
-  $('#sgNote').textContent=nn(m);nd.style.opacity=1;nd.style.left=(50+clamp(d,-60,60)/120*100)+'%';const ad=Math.abs(d);
+  $('#sgNote').textContent=nn(note!=null?note:m);nd.style.opacity=1;nd.style.left=(50+clamp(d,-60,60)/120*100)+'%';const ad=Math.abs(d);
   nd.style.background=ad<=15?'var(--ok)':ad<=35?'var(--warn)':'var(--bad)';
   if(want!=null&&ad>60){tx.textContent='Busca '+nn(want)+(d>0?' ↓':' ↑');tx.style.color='var(--bad)'}
   else{tx.textContent=ad<=15?'¡Afinado!':(d>0?(ad>35?'Alto':'Un poco alto'):(ad>35?'Bajo':'Un poco bajo'))+' '+(d>0?'+':'−')+Math.round(ad)+' c';tx.style.color=ad<=15?'var(--ok)':ad<=35?'var(--warn)':'var(--bad)'}}
@@ -2026,7 +2058,7 @@ window.addEventListener('resize',()=>{if(game&&!game.running&&$('#s-result').cla
 (function init(){bkInfo();if(!LS.get('onb',0)){if(isDemo()){ensureCtx().then(()=>{startSim();AU.mode='sim';AU.ready=true}).catch(()=>{})}const pl=profiles.find(x=>x.id===LS.get('last',null));if(pl){prof=pl;loadProg()}openWelcome();return}const last=LS.get('last',null);if(isDemo()){AU.ready=false}
   const p=profiles.find(x=>x.id===last);if(p){prof=p;loadProg();if(isDemo()){ensureCtx().then(()=>{startSim();AU.mode='sim';AU.ready=true}).catch(()=>{})}goHome()}else{show('profiles');renderProfiles()}})();
 // pruebas
-window.__R={SG,sgEval,extractMelody,sgExampleFile,parseYT,keyOf,yin,vibStats,analyze,EX,MODULES,buildTL,AU,scoreAll,nn,rateTake,analyzeBuffer,specDB};
+window.__R={yin2,pvUpdate,pvReset,PV,SG,sgEval,extractMelody,sgExampleFile,parseYT,keyOf,yin,vibStats,analyze,EX,MODULES,buildTL,AU,scoreAll,nn,rateTake,analyzeBuffer,specDB};
 </script>
 </body>
 </html>
