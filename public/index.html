@@ -904,9 +904,25 @@ function doseWeek(){let s=0;for(let i=0;i<7;i++){const d=new Date(Date.now()-i*8
 function totalStars(){return Object.values(prog.stars).reduce((s,x)=>s+x,0)}
 function streak(){const d=[...new Set(prog.days)].sort();if(!d.length)return 0;let n=1,best=1;for(let i=1;i<d.length;i++){const a=new Date(d[i-1]),b=new Date(d[i]);if((b-a)/864e5===1){n++;best=Math.max(best,n)}else n=1}const last=new Date(d[d.length-1]),today=new Date(new Date().toISOString().slice(0,10));return (today-last)/864e5<=1?n:0}
 
-function show(id){closeSheets();$$('.screen').forEach(s=>s.classList.toggle('on',s.id==='s-'+id));window.scrollTo(0,0)}
-function openSheet(id){$('#sh-'+id).classList.add('on')}
-function closeSheets(){$$('.sheet-bg').forEach(s=>s.classList.remove('on'))}
+function show(id){closeSheets();$$('.screen').forEach(s=>s.classList.toggle('on',s.id==='s-'+id));window.scrollTo(0,0);navSync()}
+function openSheet(id){$('#sh-'+id).classList.add('on');navSync()}
+/* --- botón «atrás» del móvil / del navegador: hace lo mismo que la flecha de la app.
+   Se mantiene una entrada extra en el historial mientras no estás en el inicio (o hay una ventana abierta);
+   al pulsar atrás, se consume y la app decide adónde volver. En el inicio, atrás sale como siempre. --- */
+const NAV={armed:false,skip:0};
+const navRoot=()=>{const x=document.querySelector('.screen.on');const id=x?x.id.slice(2):'';return(id==='home'||id==='profiles'||id==='welcome'||id==='')&&!document.querySelector('.sheet-bg.on')};
+function navSync(){try{if(navRoot()){if(NAV.armed&&history.state&&history.state.rsn){NAV.armed=false;NAV.skip++;history.back()}}else if(!(history.state&&history.state.rsn)){history.pushState({rsn:1},'');NAV.armed=true}}catch(e){}}
+function navBack(){const sh=document.querySelector('.sheet-bg.on');
+  if(sh){if(sh.id==='sh-pause'){$('#pCont').click();return}if(sh.id==='sh-settings'){closeSheets();goHome();return}closeSheets();return}
+  const id=(document.querySelector('.screen.on')||{id:''}).id.slice(2);
+  const click=sel=>{const b=$(sel);if(b){b.click();return true}return false};
+  if(id==='game'){if(game&&game.running){$('#gPause').click()}else{stopLoops();goHome()}return}
+  if(id==='result'){if(!click('#rBack')){stopLoops();goHome()}return}
+  const map={sing:'#sgBack',lab:'#lBack',tuner:'#tBack',rate:'#raBack'};
+  if(map[id]&&click(map[id]))return;
+  stopLoops();goHome()}
+window.addEventListener('popstate',()=>{if(NAV.skip>0){NAV.skip--;return}NAV.armed=false;navBack();setTimeout(navSync,0)});
+function closeSheets(){$$('.sheet-bg').forEach(s=>s.classList.remove('on'));if(typeof NAV!=='undefined')setTimeout(navSync,0)}
 $$('[data-close]').forEach(b=>b.onclick=closeSheets);
 $$('.sheet-bg').forEach(b=>b.addEventListener('click',e=>{if(e.target===b&&b.id!=='sh-pause')closeSheets()}));
 $$('[data-go]').forEach(b=>b.onclick=()=>{stopLoops();goHome()});
