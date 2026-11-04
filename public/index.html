@@ -325,6 +325,7 @@ input.fbm{width:100%;font:inherit;font-size:16px;padding:12px 14px;border-radius
 <section class="screen" id="s-game">
   <div class="gtop">
     <button class="icon" id="gPause">⏸</button>
+    <button class="icon" id="gRep" title="Repetir esta parte">🔁</button>
     <div class="prog"><i id="gProg"></i></div>
     <span class="dot" id="gDot"></span>
   </div>
@@ -511,6 +512,7 @@ input.fbm{width:100%;font:inherit;font-size:16px;padding:12px 14px;border-radius
   <h1>Pausa</h1>
   <div style="display:flex;flex-direction:column;gap:10px;max-width:320px;margin:18px auto">
     <button class="btn pri big" id="pCont">Continuar</button>
+    <button class="btn" id="pRep">🔁 Repetir esta parte</button>
     <button class="btn" id="pRestart">Empezar de nuevo</button>
     <button class="btn ghost" id="pExit">Salir</button>
   </div>
@@ -1020,7 +1022,7 @@ function yin2(buf,sr,prevM){const n=buf.length>>1;if(!YB.x||YB.x.length!==n){YB.
   const a=d[q-1],mm=d[q],z=d[q+1],den=a-2*mm+z;let off=den>0?(a-z)/(2*den):0;if(Math.abs(off)>1)off=0;
   return{f:fs/(q+off),conf:1-c[p]}}
 /* --- lectura estable para pantalla: centro de la nota (también con vibrato) y nombre con histéresis --- */
-const STAB_WIN={bajo:.12,medio:.26,alto:.4};
+const STAB_WIN={bajo:.15,medio:.3,alto:.5};
 const PV={hist:[],note:null,disp:null,cand:null,candT:0,last:null};
 function pvReset(){PV.hist.length=0;PV.note=null;PV.disp=null;PV.cand=null;PV.last=null}
 function pvUpdate(m,t,conf){const WIN=STAB_WIN[prefs.stab]||STAB_WIN.medio;
@@ -1155,7 +1157,7 @@ function loopGame(){raf=requestAnimationFrame(loopGame);const G=game;if(!G||!G.r
   const t=now-G.startAt,tl=G.tl,seg=t>=0?segAt(tl,t):null;
   // simulación
   if(AU.mode==='sim')simSet(simPolicy(seg,t,tl));
-  const a=analyze(G.wantSpec||AU.mode==='sim');lastM=a.m;
+  const a=analyze(G.wantSpec||AU.mode==='sim');lastM=a.m;G.disp=a.disp;
   const ign=now<AU.ignoreUntil;
   // guía y metrónomo
   if(t>=0&&seg!==G.lastSeg){const prev=G.lastSeg;G.lastSeg=seg;
@@ -1169,7 +1171,7 @@ function loopGame(){raf=requestAnimationFrame(loopGame);const G=game;if(!G||!G.r
     if(seg.m0!=null&&f.m!=null){const g0=seg.t0+Math.min(.15,(seg.t1-seg.t0)*.4);if(t>=g0){const rec=seg.frames.filter(x=>x.m!=null&&x.t>=g0&&t-x.t<=.25);const c=mean([...rec.map(x=>x.m),f.m]);err=(c-tgt(seg,t))*100;ok=Math.abs(err)<=prefs.tol;f.err=err;f.ok=ok}}
     else if(seg.m0==null&&f.m!=null)f.ok=true;
     seg.frames.push(f)}
-  if(t>=-1.5)G.hist.push({t,m:a.m,ok:seg&&seg.m0!=null?ok:null});
+  if(t>=-1.5){const ph=G.hist[G.hist.length-1];let ms=a.m;if(a.m!=null&&ph&&ph.ms!=null&&t-ph.t<.1&&Math.abs(a.m-ph.ms)<1)ms=ph.ms+(a.m-ph.ms)*(1-Math.exp(-(t-ph.t)/.03));G.hist.push({t,m:a.m,ms,ok:seg&&seg.m0!=null?ok:null})}
   if(a.m!=null&&!ign)addDose(1/60);
   if(seg&&seg.g==='tmf'){if(a.m!=null){seg.started=1;seg.sil=0}else if(seg.started){seg.sil=(seg.sil||0)+1;if(seg.sil>40&&!seg.cut){seg.cut=1;const rem=seg.t1-t;if(rem>.2)G.startAt-=rem}}}
   // UI
@@ -1222,7 +1224,7 @@ function drawGameKb(t,now){const G=game,tl=G.tl,seg=t>=0?segAt(tl,t):null,keys=[
   if(seg&&seg.m0!=null)keys.push({m:Math.round(tgt(seg,t)),col:GOAL_INFO[seg.g][1]});
   else{const nx=tl.segs.find(s=>s.t0>t&&s.m0!=null);if(nx&&!keys.length)keys.push({m:Math.round(nx.m0),col:'#a17dff66'})}
   const last=G.hist[G.hist.length-1];const col=!last||last.ok==null?'#ffffff':last.ok?'#42d392':'#ff6b7a';
-  drawKeys($('#gkb'),tl.lo+2,tl.hi-2,{keys,dot:{m:lastM,col}})}
+  drawKeys($('#gkb'),tl.lo+2,tl.hi-2,{keys,dot:{m:G.disp,col}})}
 function drawGame(t){const cv=$('#gcv'),{g,w,h}=fit(cv),G=game,tl=G.tl;g.clearRect(0,0,w,h);
   const cx=w*.3,pps=w/6,X=tt=>cx+(tt-t)*pps,Y=m=>h-10-(m-tl.lo)/(tl.hi-tl.lo)*(h-20);
   // rejilla
@@ -1235,10 +1237,10 @@ function drawGame(t){const cv=$('#gcv'),{g,w,h}=fit(cv),G=game,tl=G.tl;g.clearRe
     else{g.fillStyle=col+(act?'30':'18');g.fillRect(x0,6,x1-x0,h-12);if(s.v){g.fillStyle='#cfcaf5';g.fillText(s.v,x0+4,18)}}}
   // voz
   g.lineWidth=3;g.lineCap='round';let prev=null;for(const p of G.hist){if(p.t<t-2)continue;if(p.m==null||(prev&&p.t-prev.t>.12)){prev=p.m==null?null:p;continue}
-    if(prev&&prev.m!=null){g.strokeStyle=p.ok==null?'#e8e6ff':p.ok?'#42d392':'#ff6b7a';g.beginPath();g.moveTo(X(prev.t),Y(prev.m));g.lineTo(X(p.t),Y(p.m));g.stroke()}prev=p}
+    if(prev&&prev.m!=null){g.strokeStyle=p.ok==null?'#e8e6ff':p.ok?'#42d392':'#ff6b7a';g.beginPath();g.moveTo(X(prev.t),Y(prev.ms??prev.m));g.lineTo(X(p.t),Y(p.ms??p.m));g.stroke()}prev=p}
   // cursor
   g.strokeStyle='#fff';g.lineWidth=2;g.shadowColor='#a17dff';g.shadowBlur=12;g.beginPath();g.moveTo(cx,4);g.lineTo(cx,h-4);g.stroke();g.shadowBlur=0;
-  if(lastM!=null){g.fillStyle='#fff';g.beginPath();g.arc(cx,Y(clamp(lastM,tl.lo,tl.hi)),6,0,7);g.fill()}}
+  if(G.disp!=null){g.fillStyle='#fff';g.beginPath();g.arc(cx,Y(clamp(G.disp,tl.lo,tl.hi)),6,0,7);g.fill()}}
 
 /* --- puntuación --- */
 function segStats(s){const grace=s.m0!=null?Math.min(.15,(s.t1-s.t0)*.4):0;const fr=s.frames.filter(f=>!f.ign&&f.t>=s.t0+grace),n=fr.length||1,v=fr.filter(f=>f.m!=null);
@@ -1356,6 +1358,22 @@ function drawTake(G){const cv=$('#rcv'),{g,w,h}=fit(cv),tl=G.tl;g.clearRect(0,0,
 $('#gPause').onclick=()=>{if(!game)return;game.paused=true;game.pausedAt=performance.now()/1000;simSet(null);guideSet(null);openSheet('pause')};
 $('#pCont').onclick=()=>{closeSheets();const d=performance.now()/1000-game.pausedAt;game.startAt+=d;game.cntTimes=game.cntTimes.map(x=>x+d);game.paused=false};
 $('#pRestart').onclick=()=>{closeSheets();startGame(game.ex)};
+// Repetir esta parte: vuelve al principio de la repetición actual (con su preescucha) sin reiniciar el ejercicio
+function gameRewind(){const G=game;if(!G||!G.running)return;const now=performance.now()/1000;
+  if(G.paused){const d=now-G.pausedAt;G.startAt+=d;G.cntTimes=G.cntTimes.map(x=>x+d);G.paused=false}
+  const tl=G.tl,t=now-G.startAt;simSet(null);guideSet(null);
+  // pausa con preescucha que precede a la frase en curso (o en la que estamos)
+  let rest=null;for(const s of tl.segs){if(s.t0>t)break;if(s.cue||(s.g==='rest'&&s.dur>=.8))rest=s}
+  const from=rest?rest.t0:0;
+  tl.segs.forEach(s=>{if(s.t0>=from-1e-6){s.frames=[];s.toned=0;delete s.started;delete s.sil;delete s.cut;delete s.st;delete s.score}});
+  G.lit=[];G.lastSeg=null;G.lastBeat=-1;AU.ignoreUntil=0;pvReset();
+  if(!rest){// primera frase: repetir la preescucha inicial y la cuenta
+    G.hist=[];const sc=tl.startCue;let pre=0;if(sc){sc.tones.forEach(x=>cueTone(x.m,x.dur,x.at));pre=sc.firstAt+CUE.first+.25;AU.ignoreUntil=now+pre;G.cueTxt={ph:sc.phrase?now+sc.firstAt:0,first:now+pre,m:sc.m}}
+    G.startAt=now+pre+2.4;G.cntTimes=[now+pre,now+pre+.8,now+pre+1.6];G.cntDone=0}
+  else{const newT=rest.cue?rest.t0+Math.max(0,rest.cueAt-.35):rest.t0;G.hist=G.hist.filter(h=>h.t<newT);G.startAt=now-newT}
+  toast('🔁 Repetimos esta parte')}
+$('#gRep').onclick=gameRewind;
+$('#pRep').onclick=()=>{closeSheets();gameRewind()};
 $('#pExit').onclick=()=>{closeSheets();stopLoops();openModule(game.ex.mod)};
 
 /* ================= inicio / módulos ================= */
@@ -1412,11 +1430,11 @@ function loopTuner(){if(!tuOn)return;raf=requestAnimationFrame(loopTuner);const 
   if(c==null){$('#tNote').textContent=tu.mode==='fija'?nn(tu.tgt):'—';$('#tNote').style.color='';$('#tCents').textContent=tu.mode==='fija'?'Objetivo':'Canta una nota';msg.textContent=tu.mode==='fija'?'Canta '+nn(tu.tgt):'Canta una nota larga en «a» o «u»';msg.style.color='';tu.okT=0}
   else{const ac=Math.abs(c),col=ac<=10?'#42d392':ac<=25?'#ffd166':'#ff6b7a';
     $('#tNote').textContent=tu.mode==='fija'?nn(tu.tgt):nn(ref);$('#tNote').style.color=col;
-    $('#tCents').textContent=(c>0?'+':'')+Math.round(c)+' cents'+(tu.mode==='fija'?' · cantas '+nn(sm):'');
+    tu.cd=tu.cd==null?c:tu.cd+(c-tu.cd)*.18;if(!tu.ct||now-tu.ct>.12){tu.ct=now;$('#tCents').textContent=(tu.cd>0?'+':'')+Math.round(tu.cd)+' cents'+(tu.mode==='fija'?' · cantas '+nn(sm):'')}
     if(ac<=10){tu.okT=tu.okT||now;msg.textContent=now-tu.okT>.25?'¡Afinado!':'Casi…'}
     else{tu.okT=0;msg.textContent=ac>100?(c<0?'Muy bajo: sube '+Math.round(ac/100)+' semitono'+(Math.round(ac/100)>1?'s':''):'Muy alto: baja '+Math.round(ac/100)+' semitono'+(Math.round(ac/100)>1?'s':'')):c<0?'Bajo · sube un poco ↑':'Alto · baja un poco ↓'}
     msg.style.color=col}
-  const goal=c==null?0:clamp(c,-50,50);tu.nd+=(goal-tu.nd)*.25;drawTuner(tu.nd,c!=null);
+  if(c==null)tu.cd=null;const goal=c==null?0:clamp(c,-50,50);tu.nd+=(goal-tu.nd)*.15;drawTuner(tu.nd,c!=null);
   const k=tu.mode==='fija'?tu.tgt:(ref??Math.round(profMid()));
   drawKeys($('#tkb'),k-7,k+7,{keys:ref!=null||tu.mode==='fija'?[{m:k,col:c!=null&&Math.abs(c)<=10?'#42d392':'#a17dff'}]:[],dot:{m:sm,col:'#ffffff'}})}
 function drawTuner(nd,on){const cv=$('#tcv'),{g,w,h}=fit(cv);g.clearRect(0,0,w,h);const cx=w/2,cy=h-18,R=Math.min(w/2-24,h-40),A=Math.PI*.42,ang=c=>-Math.PI/2+c/50*A;
@@ -1689,7 +1707,7 @@ async function sgSetVideo(id){
   const saved=sgSongs().find(s=>s.k===id);if(saved){SG.title=saved.title||'';SG.off=saved.off||0}else SG.off=0;
   // melodía guardada de otra vez
   if(SG.refFromSave){SG.ref=null;SG.refNotes=null;SG.keyRef=null;SG.refMed=null;SG.refFromSave=false;sgRefStatus('')}
-  if(!SG.ref){const mel=LS.get('sg_mel_'+id,null);if(mel){try{sgSetRef({hop:mel.hop,m:melDec(mel.m)});SG.refFromSave=true;sgRefStatus('Melodía guardada de la última vez · '+SG.refNotes.length+' notas'+(SG.keyRef?' · '+SG.keyRef.name:''),'ok')}catch(e){}}}
+  if(!SG.ref){const mel=LS.get('sg_mel_'+id,null);if(mel&&mel.v===2){try{sgSetRef({hop:mel.hop,t0:mel.t0||0,m:melDec(mel.m)});SG.refFromSave=true;sgRefStatus('Melodía guardada de la última vez · '+SG.refNotes.length+' notas'+(SG.keyRef?' · '+SG.keyRef.name:''),'ok')}catch(e){}}}
   const w=$('#ytWrap');w.style.display='block';$('#auCard').style.display='none';w.innerHTML='<div id="ytBox"></div>';
   sgRenderPrev();sgUpd();
   fetch('/api/yt?id='+id).then(r=>{if(r.status===403){SG.ytBlocked=true;sgMsg(YT_ERR[150],'err');sgUpd()}return r.ok?r.json():null}).then(j=>{if(j&&j.title&&SG.ytId===id){SG.title=j.title;SG.author=j.author||'';sgRenderPrev()}}).catch(()=>{});
@@ -1714,36 +1732,79 @@ async function sgUseFile(file){
     SG.auName=file.name.replace(/\.[^.]+$/,'');SG.refFromSave=false;
     if(!SG.ytId){SG.off=0;SG.title=SG.auName}
     sgSetRef(ref);
-    if(!SG.refNotes||SG.refNotes.length<8){SG.ref=null;SG.refNotes=null;st('<span style="color:var(--warn)">No he podido sacar la melodía de este audio (¿es solo instrumental?). Haré el análisis básico de afinación.</span>')}
-    else st('<span style="color:var(--ok)">✓ Melodía lista</span> · '+SG.refNotes.length+' notas'+(SG.keyRef?' · '+SG.keyRef.name:'')+(SG.ytId?' · la sincronizo con el vídeo al terminar tu primera toma':''));
+    if(!SG.refNotes||SG.refNotes.length<8){SG.ref=null;SG.refNotes=null;st('<span style="color:var(--warn)">No encuentro una voz cantando en este audio (¿es solo instrumental o karaoke?). Haré el análisis básico de afinación. Para comparar nota a nota, sube la canción con voz o la pista de voz sola.</span>')}
+    else st('<span style="color:var(--ok)">✓ Melodía de la voz lista</span> · '+SG.refNotes.length+' notas'+(SG.keyRef?' · '+SG.keyRef.name:'')+(SG.ytId?' · la sincronizo con el vídeo al terminar tu primera toma':'')+'<br><span class="small mute">'+(ref.stereo?'':'Audio en mono: separo peor la voz de la base. ')+'Saco la voz de la mezcla: funciona mejor si la voz se oye clara. Si alguna nota no cuadra, sube la versión solo voz.</span>');
     sgShowAudioCard();sgRenderPrev();sgUpd()}
   catch(e){console.error(e);st('<span style="color:var(--bad)">No he podido leer ese audio. Prueba con mp3, m4a o wav.</span>')}}
 function sgRefStatus(h){$('#sgRefSt').innerHTML=h;$('#sgNoRef').style.display=SG.ref||SG.au?'':'none'}
 function sgClearRef(){SG.ref=null;SG.refNotes=null;SG.keyRef=null;SG.refMed=null;if(SG.au){SG.au.pause();SG.au=null}SG.auName='';if(SG.ytId)LS.set('sg_mel_'+SG.ytId,null);sgRefStatus('');sgShowAudioCard();sgRenderPrev();sgUpd()}
 
-function extractMelody(buf,onp){return new Promise(async res=>{
-  const sr=buf.sampleRate,D=Math.max(1,Math.round(sr/11025)),sr2=sr/D,len=Math.min(buf.length,Math.floor(sr*600)),n2=Math.floor(len/D),y=new Float32Array(n2),C=buf.numberOfChannels,ch=[];
-  for(let c=0;c<C;c++)ch.push(buf.getChannelData(c));
-  for(let i=0;i<n2;i++){let s=0;const b=i*D;for(let j=0;j<D;j++)for(let c=0;c<C;c++)s+=ch[c][b+j];y[i]=s/(D*C)}
-  {const a=Math.exp(-2*Math.PI*100/sr2);let px=0,py=0;for(let i=0;i<n2;i++){const x=y[i];py=a*(py+x-px);px=x;y[i]=py}}
-  const hop=.04,H=Math.round(sr2*hop),W=512,NF=Math.max(0,Math.floor((n2-2*W)/H)),rms=new Float32Array(NF);
-  for(let k=0;k<NF;k++){let s=0;const p=k*H;for(let i=0;i<2*W;i+=2){const v=y[p+i];s+=v*v}rms[k]=Math.sqrt(s/W)}
-  const srt=Array.from(rms).sort((a,b)=>a-b),gate=Math.max(.002,(srt[Math.floor(srt.length*.9)]||0)*.18);
-  const m=new Float32Array(NF).fill(NaN),tMin=Math.floor(sr2/1050),tMax=Math.floor(sr2/72),d=new Float32Array(tMax+2);
-  for(let k=0;k<NF;k++){
-    if(rms[k]>gate){const p=k*H;
-      for(let t=1;t<=tMax+1;t++){let s=0;for(let i=0;i<W;i++){const x=y[p+i]-y[p+i+t];s+=x*x}d[t]=s}
-      let run=0;for(let t=1;t<=tMax+1;t++){run+=d[t];d[t]=run?d[t]*t/run:1}
-      let p0=-1;for(let t=tMin;t<=tMax;t++){if(d[t]<.2){while(t+1<=tMax&&d[t+1]<d[t])t++;p0=t;break}}
-      if(p0>0){const a=d[p0-1],b=d[p0],c=d[p0+1],den=a-2*b+c,f=sr2/(p0+(den?(a-c)/(2*den):0));if(f>75&&f<1000)m[k]=hz2m(f)}}
-    if(k%150===0){onp&&onp(k/NF);await new Promise(r=>setTimeout(r,0))}}
-  // mediana de 5, corrección de octava y limpieza de tramos cortos
-  const sm=new Float32Array(NF).fill(NaN);
-  for(let k=0;k<NF;k++){if(isNaN(m[k]))continue;const w=[];for(let j=k-2;j<=k+2;j++)if(j>=0&&j<NF&&!isNaN(m[j]))w.push(m[j]);sm[k]=w.length>=3?median(w):m[k]}
-  for(let k=0;k<NF;k++){if(isNaN(sm[k]))continue;const w=[];for(let j=k-7;j<=k+7;j++)if(j>=0&&j<NF&&!isNaN(sm[j]))w.push(sm[j]);if(w.length<6)continue;const md=median(w);
-    if(Math.abs(sm[k]-md-12)<.7)sm[k]-=12;else if(Math.abs(sm[k]-md+12)<.7)sm[k]+=12}
-  let k=0;while(k<NF){if(isNaN(sm[k])){k++;continue}let j=k;while(j<NF&&!isNaN(sm[j]))j++;if(j-k<4)for(let i=k;i<j;i++)sm[i]=NaN;k=j}
-  onp&&onp(1);res({hop,t0:W/sr2*.75,m:sm})})}
+/* --- melodía principal (voz) de una mezcla: máscara de centro estéreo, saliencia por suma de armónicos,
+   Viterbi con estado «sin voz» y filtro de contornos (la voz destaca y nunca es perfectamente recta) --- */
+function melFFT(N){const rev=new Uint32Array(N),lg=Math.log2(N);for(let i=0;i<N;i++){let r=0,x=i;for(let b=0;b<lg;b++){r=(r<<1)|(x&1);x>>=1}rev[i]=r}
+  const cs=new Float32Array(N/2),sn=new Float32Array(N/2);for(let i=0;i<N/2;i++){cs[i]=Math.cos(2*Math.PI*i/N);sn[i]=-Math.sin(2*Math.PI*i/N)}
+  return(re,im)=>{for(let i=0;i<N;i++){const j=rev[i];if(j>i){let t=re[i];re[i]=re[j];re[j]=t;t=im[i];im[i]=im[j];im[j]=t}}
+    for(let s=2;s<=N;s<<=1){const h=s>>1,st=N/s;for(let i=0;i<N;i+=s)for(let k=0;k<h;k++){const w=k*st,a=i+k,b=a+h,tr=re[b]*cs[w]-im[b]*sn[w],ti=re[b]*sn[w]+im[b]*cs[w];re[b]=re[a]-tr;im[b]=im[a]-ti;re[a]+=tr;im[a]+=ti}}}}
+async function extractMelodyLR({L,R,sr},opt={},onp){
+  const D=Math.max(1,Math.round(sr/22050)),fs=sr/D,n=Math.floor(L.length/D);
+  const l=new Float32Array(n),r=new Float32Array(n);for(let i=0;i<n;i++){let a=0,b=0;for(let j=0;j<D;j++){a+=L[i*D+j];b+=(R||L)[i*D+j]}l[i]=a/D;r[i]=b/D}
+  const N=2048,hop=opt.hop||.03,H=Math.round(fs*hop),NF=Math.max(0,Math.floor((n-N)/H)),fft=melFFT(N),win=new Float32Array(N);for(let i=0;i<N;i++)win[i]=.5-.5*Math.cos(2*Math.PI*i/N);
+  // ¿estéreo real? energía lateral frente a central
+  let side=0,mid=0;for(let i=0;i<n;i+=7){const a=l[i],b=r[i];side+=(a-b)**2;mid+=(a+b)**2}const stereo=side>mid*.003;
+  const G0=98,GB=410,gridHz=k=>G0*Math.pow(2,k/120);// 10 cents
+  const bh=fs/N,kMax=Math.min(N/2-2,Math.floor(5000/bh));
+  const lr=new Float32Array(N),li=new Float32Array(N),rr=new Float32Array(N),ri=new Float32Array(N),mag=new Float32Array(N/2);
+  const cand=[];// por frame: [{k,s}]
+  const frameE=new Float32Array(NF);
+  for(let f=0;f<NF;f++){const p=f*H;for(let i=0;i<N;i++){lr[i]=l[p+i]*win[i];li[i]=0;rr[i]=r[p+i]*win[i];ri[i]=0}fft(lr,li);fft(rr,ri);
+    let e=0;for(let k=1;k<=kMax;k++){const a=lr[k],b=li[k],c=rr[k],d=ri[k];const ml=a*a+b*b,mr=c*c+d*d;let m=Math.sqrt((a+c)**2+(b+d)**2)/2;
+      if(stereo){const sim=2*(a*c+b*d)/(ml+mr+1e-12);m*=sim>0?sim*sim:0}mag[k]=m;if(k*bh>200&&k*bh<4000)e+=m*m}frameE[f]=e;
+    // picos
+    const sal=new Float32Array(GB);let pk=0;for(let k=2;k<kMax;k++)if(mag[k]>pk)pk=mag[k];const floor=pk*.01;
+    for(let k=2;k<kMax;k++){const m=mag[k];if(m<floor||m<mag[k-1]||m<mag[k+1])continue;
+      const a=Math.log(mag[k-1]+1e-9),b=Math.log(m+1e-9),c=Math.log(mag[k+1]+1e-9),den=a-2*b+c,off=den<0?.5*(a-c)/den:0;const fp=(k+off)*bh;if(fp<G0*.95)continue;
+      const amp=Math.pow(m/pk,.33)*(fp<300?Math.pow(fp/300,1.5):1);
+      for(let h=1;h<=10;h++){const f0=fp/h;if(f0<G0)break;const gk=120*Math.log2(f0/G0);if(gk>GB-1)continue;const w=amp*Math.pow(.8,h-1);
+        const c0=Math.round(gk);for(let q=c0-5;q<=c0+5;q++){if(q<0||q>=GB)continue;const dd=(q-gk)/5;if(Math.abs(dd)>1)continue;sal[q]+=w*Math.cos(Math.PI/2*dd)**2}}}
+    const peaks=[];for(let q=1;q<GB-1;q++)if(sal[q]>0&&sal[q]>=sal[q-1]&&sal[q]>sal[q+1]){const a=sal[q-1],b=sal[q],c=sal[q+1],den=a-2*b+c;peaks.push({k:q,kf:q+(den<0?.5*(a-c)/den:0),s:sal[q]})}peaks.sort((x,y)=>y.s-x.s);
+    // quedarse con 5 y evitar que la suboctava gane por poco: si existe pico a +12 st con ≥ 85 %, preferirlo
+    const top=peaks.slice(0,6);for(const P of top){const up=top.find(Q=>Math.abs(Q.k-P.k-120)<=4);if(up&&up.s>=P.s*.85&&P===top[0]){top.splice(top.indexOf(up),1);top.unshift(up);break}}
+    cand.push(top.slice(0,5));if(f%120===0){onp&&onp(.95*f/NF);await new Promise(r=>setTimeout(r,0))}}
+  // normalizar saliencias
+  const best=cand.map(c=>c.length?c[0].s:0);const sb=[...best].sort((a,b)=>a-b);const ref=sb[Math.floor(sb.length*.9)]||1;
+  const eS=[...frameE].sort((a,b)=>a-b),eRef=eS[Math.floor(eS.length*.9)]||1;
+  // Viterbi: estados = candidatos + «sin voz»
+  const thr=opt.thr??.3,jump=.08,vu=.6;
+  let prev=[{k:-1,v:0,from:-1}];const back=[];
+  for(let f=0;f<NF;f++){const eN=frameE[f]/eRef;const st=[{k:-1,emit:thr}].concat(cand[f].map(c=>({k:c.k,emit:Math.min(1.5,c.s/ref)*(1+(opt.hi??.35)*Math.min(1,c.k/300))*(eN<.02?.3:1)})));
+    const bk=[];for(const S of st){let bv=-1e9,bi=0;prev.forEach((P,i)=>{let cost=0;if(S.k<0&&P.k<0)cost=0;else if(S.k<0||P.k<0)cost=vu;else{const dst=Math.abs(S.k-P.k)/10;cost=dst<=.6?0:jump*Math.min(dst,14)+.1}
+        const v=P.v-cost;if(v>bv){bv=v;bi=i}});S.v=bv+S.emit;bk.push(bi)}back.push(bk);prev=st}
+  // retroceso
+  const path=new Int32Array(NF).fill(-1);let bi=0;prev.forEach((P,i)=>{if(P.v>prev[bi].v)bi=i});
+  const states=[];// reconstruir: guardamos k por frame
+  const ks=new Array(NF),em=new Float32Array(NF);
+  for(let f=NF-1;f>=0;f--){const st=[{k:-1}].concat(cand[f]);const S=st[bi];ks[f]=S.k>=0?S.kf:-1;em[f]=S.k>=0?S.s/ref:0;bi=back[f][bi]}
+  const m=new Float32Array(NF).fill(NaN);for(let f=0;f<NF;f++)if(ks[f]>=0)m[f]=hz2m(G0*Math.pow(2,ks[f]/120));
+  // contornos: tramos continuos (sin hueco ni salto > 1 st)
+  const cont=[];{let c=null;for(let f=0;f<NF;f++){if(isNaN(m[f])){c=null;continue}if(!c||Math.abs(m[f]-m[f-1])>1){c={a:f,b:f};cont.push(c)}c.b=f}}
+  cont.forEach(c=>{const v=[],e=[];for(let f=c.a;f<=c.b;f++){v.push(m[f]);e.push(em[f])}c.len=(c.b-c.a+1)*hop;c.emit=e.reduce((x,y)=>x+y,0)/e.length;
+    // fluctuación: desviación respecto a su media móvil de 0,2 s, en cents
+    const w=Math.max(2,Math.round(.1/hop));const dv=v.map((x,i)=>{let s2=0,n2=0;for(let j=Math.max(0,i-w);j<=Math.min(v.length-1,i+w);j++){s2+=v[j];n2++}return Math.abs(x-s2/n2)*100});c.fl=median(dv)});
+  // umbral de saliencia de contorno por Otsu ponderado por duración
+  const vals=cont.map(c=>({x:c.emit,w:c.len}));let T=0,sep=99;{const xs=[...new Set(vals.map(v=>+v.x.toFixed(3)))].sort((a,b)=>a-b);let bestV=-1;
+    for(const t of xs){let w0=0,s0=0,w1=0,s1=0;for(const v of vals){if(v.x<=t){w0+=v.w;s0+=v.x*v.w}else{w1+=v.w;s1+=v.x*v.w}}if(!w0||!w1)continue;const bv=w0*w1*(s0/w0-s1/w1)**2;if(bv>bestV){bestV=bv;T=t;sep=(s1/w1)/Math.max(1e-6,s0/w0)}}
+    const totL=cont.reduce((a,c)=>a+c.len,0)||1,stL=cont.filter(c=>c.fl<2.5&&c.len>.2).reduce((a,c)=>a+c.len,0);
+    if(stL/totL<.08){const ws=[...vals].sort((a,b)=>a.x-b.x);let tot=ws.reduce((a,v)=>a+v.w,0),acc=0,md=0;for(const v of ws){acc+=v.w;if(acc>=tot/2){md=v.x;break}}T=Math.min(T,.3*md)}}
+  const keepC=c=>{if(c.len<.12)return false;const steady=c.fl<2.5&&c.len>.2;if(steady&&c.emit<T*1.6)return false;return c.emit>T*(c.fl>6?.75:1)};
+  cont.forEach(c=>{if(!keepC(c))for(let f=c.a;f<=c.b;f++)m[f]=NaN});
+  const sm=new Float32Array(NF).fill(NaN);for(let f=0;f<NF;f++){if(isNaN(m[f]))continue;const w=[];for(let j=f-1;j<=f+1;j++)if(j>=0&&j<NF&&!isNaN(m[j]))w.push(m[j]);sm[f]=median(w)}
+  let k=0;const minLen=Math.ceil(.12/hop);while(k<NF){if(isNaN(sm[k])){k++;continue}let j=k;while(j<NF&&!isNaN(sm[j]))j++;if(j-k<minLen)for(let i=k;i<j;i++)sm[i]=NaN;k=j}
+  let nv=0;for(let f=0;f<NF;f++)if(!isNaN(sm[f]))nv++;
+  onp&&onp(1);return{hop,t0:N/2/fs,m:sm,voiced:NF?nv/NF:0,stereo}}
+
+async function extractMelody(buf,onp){const sr=buf.sampleRate,len=Math.min(buf.length,Math.floor(sr*600));
+  const L=buf.getChannelData(0).subarray(0,len),R=(buf.numberOfChannels>1?buf.getChannelData(1):buf.getChannelData(0)).subarray(0,len);
+  return extractMelodyLR({L,R,sr},{},onp)}
 function melEnc(m){const u=new Uint16Array(m.length);for(let i=0;i<m.length;i++)u[i]=isNaN(m[i])?0:Math.round(m[i]*100);const b=new Uint8Array(u.buffer);let s='';for(let i=0;i<b.length;i+=8192)s+=String.fromCharCode.apply(null,b.subarray(i,i+8192));return btoa(s)}
 function melDec(s){const bin=atob(s),b=new Uint8Array(bin.length);for(let i=0;i<b.length;i++)b[i]=bin.charCodeAt(i);const u=new Uint16Array(b.buffer),m=new Float32Array(u.length);for(let i=0;i<u.length;i++)m[i]=u[i]?u[i]/100:NaN;return m}
 
@@ -1823,7 +1884,7 @@ function sgKey(){return SG.ytId||(SG.auName?'f:'+SG.auName:null)}
 function sgSave(score){const k=sgKey();if(!k||!prof)return;let L=sgSongs();const old=L.find(s=>s.k===k)||{};L=L.filter(s=>s.k!==k);
   L.unshift({k,yt:SG.ytId,title:SG.title||SG.auName||k,off:SG.off,last:score,best:Math.max(score,old.best||0),n:(old.n||0)+1,d:today(),ref:!!SG.ref});
   const drop=L.slice(15);L=L.slice(0,15);LS.set('sg_songs_'+prof.id,L);drop.forEach(s=>{if(s.yt)try{localStorage.removeItem('rsn_sg_mel_'+s.yt)}catch(e){}});
-  if(SG.ytId&&SG.ref&&!SG.refFromSave){LS.set('sg_mel_'+SG.ytId,{hop:SG.ref.hop,m:melEnc(SG.ref.m)});SG.refFromSave=true}}
+  if(SG.ytId&&SG.ref&&!SG.refFromSave){LS.set('sg_mel_'+SG.ytId,{v:2,hop:SG.ref.hop,t0:SG.ref.t0||0,m:melEnc(SG.ref.m)});SG.refFromSave=true}}
 function sgRenderSongs(){const L=sgSongs();$('#sgSongsBox').style.display=L.length?'':'none';
   $('#sgSongs').innerHTML=L.map((s,i)=>`<button class="sgsong" data-i="${i}">${s.yt?`<img src="https://i.ytimg.com/vi/${esc(s.yt)}/mqdefault.jpg" alt="" loading="lazy">`:'<span class="ph">🎵</span>'}<div class="sp" style="min-width:0"><div class="tt">${esc(s.title)}</div><div class="small mute">${esc(s.d)} · ${s.n} ${s.n===1?'vez':'veces'}${s.ref?' · con melodía':''}</div></div><div style="text-align:right"><b style="color:${gcol(s.last)}">${fmt(s.last)}</b><div class="small mute">mejor ${fmt(s.best)}</div></div></button>`).join('');
   $$('#sgSongs .sgsong').forEach(b=>b.onclick=()=>{const s=L[+b.dataset.i];if(s.yt){$('#sgUrl').value='https://youtu.be/'+s.yt;sgSetVideo(s.yt);window.scrollTo({top:0,behavior:'smooth'})}else toast('Vuelve a subir el audio de «'+s.title+'»',3500)})}
