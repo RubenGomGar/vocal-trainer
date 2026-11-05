@@ -309,7 +309,7 @@ input.fbm{width:100%;font:inherit;font-size:16px;padding:12px 14px;border-radius
   <div class="micbar"><span class="dot" id="hDot"></span><span id="hMic" class="sp">Micrófono sin configurar</span><button class="btn" id="hMicBtn">Configurar</button></div>
   <div class="card row" id="hRange"></div>
   <button class="mod" id="hRate" style="--c:#ff7ab8"><div class="mi">⭐</div><div class="sp"><b>Califica tu voz</b><div class="mute small" id="hRateSub">Canta lo que quieras y te pongo nota en cada módulo</div></div><span style="font-size:22px">›</span></button>
-  <button class="mod" id="hSing" style="--c:#3fd0b5"><div class="mi">🎬</div><div class="sp"><b>Canta conmigo</b><div class="mute small">Pega un vídeo de YouTube, canta encima y mira tu afinación</div></div><span style="font-size:22px">›</span></button>
+  <button class="mod" id="hSing" style="--c:#3fd0b5"><div class="mi">🎬</div><div class="sp"><b>Canta conmigo</b><div class="mute small">Elige un vídeo de YouTube o un MP3, canta encima y mira tu afinación</div></div><span style="font-size:22px">›</span></button>
   <div id="hSexAsk"></div>
   <div id="hMods"></div>
   <button class="mod" id="hHealth" style="--c:#7be495"><div class="mi">🩺</div><div class="sp"><b>Salud vocal</b><div class="mute small" id="hDose">Dosis de canto de hoy</div></div><span style="font-size:22px">›</span></button>
@@ -399,7 +399,7 @@ input.fbm{width:100%;font:inherit;font-size:16px;padding:12px 14px;border-radius
 
 <!-- Canta conmigo -->
 <section class="screen" id="s-sing">
-  <div class="row"><button class="icon" id="sgBack">←</button><div><div class="mute small">Canta conmigo</div><h1 style="margin:0">Canta sobre un vídeo</h1></div></div>
+  <div class="row"><button class="icon" id="sgBack">←</button><div><div class="mute small">Canta conmigo</div><h1 style="margin:0">Canta sobre una canción</h1></div></div>
   <div class="sglay">
     <div>
       <div id="ytWrap"></div>
@@ -409,20 +409,27 @@ input.fbm{width:100%;font:inherit;font-size:16px;padding:12px 14px;border-radius
       <!-- preparar -->
       <div id="sgSetup">
         <div class="card">
-          <b>1 · Elige un vídeo de YouTube</b>
+          <div class="row" style="flex-wrap:wrap;gap:8px"><b class="sp">1 · Elige la canción</b><div class="seg" id="sgSrc"><button data-v="yt">▶ YouTube</button><button data-v="file">🎵 MP3</button></div></div>
+          <div id="sgSrcYt">
           <div id="sgUrlRow" style="margin-top:10px"><input type="text" id="sgUrl" placeholder="Pega el enlace o escribe la canción" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search"><button class="btn" id="sgPaste">📋 Pegar</button></div>
           <div class="row small" style="margin-top:8px;gap:8px;flex-wrap:wrap"><a class="btn ytbtn" id="sgYt" href="https://www.youtube.com/" target="_blank" rel="noopener">▶ Buscar en YouTube</a><span class="mute" id="sgYtTip">Busca la canción, toca «Compartir» → «Copiar enlace» y vuelve aquí a pegarlo.</span></div>
           <div id="sgPrev" style="margin-top:10px"></div>
+          </div>
+          <div id="sgSrcFile" style="display:none">
+            <p class="small mute" style="margin:8px 0 10px">Elige una canción guardada en tu móvil o tablet (mp3, m4a, wav…). Se queda en tu dispositivo: no se sube a ningún sitio. Saco la melodía de la voz del propio audio.</p>
+            <div class="row" style="flex-wrap:wrap;gap:8px"><label class="btn pri" for="sgSong" id="sgSongBtn">🎵 Elegir MP3</label><input type="file" id="sgSong" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.flac" style="display:none"><button class="btn ghost" id="sgEx">🎹 Canción de ejemplo</button><button class="btn ghost" id="sgNoSong" style="display:none">Quitar</button></div>
+            <div id="sgSongSt" class="small" style="margin-top:8px"></div>
+          </div>
         </div>
-        <div class="card">
+        <div class="card" id="sgRefCard">
           <div class="row"><b class="sp">2 · Comparar con la melodía</b><span class="chip">opcional</span></div>
           <p class="small mute" style="margin:6px 0 10px">Sube el audio de la misma canción (mp3, m4a…) y te diré si cantas las notas correctas. Mejor si la voz se oye clara. Sin audio, analizo solo tu afinación.</p>
-          <div class="row" style="flex-wrap:wrap"><label class="btn" for="sgFile">🎵 Añadir audio</label><input type="file" id="sgFile" accept="audio/*" style="display:none"><button class="btn ghost" id="sgEx">🎹 Canción de ejemplo</button><button class="btn ghost" id="sgNoRef" style="display:none">Quitar</button></div>
+          <div class="row" style="flex-wrap:wrap"><label class="btn" for="sgFile">🎵 Añadir audio</label><input type="file" id="sgFile" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.flac" style="display:none"><button class="btn ghost" id="sgNoRef" style="display:none">Quitar</button></div>
           <div id="sgRefSt" class="small" style="margin-top:8px"></div>
         </div>
         <div class="card">
-          <b>3 · Auriculares</b>
-          <p class="small mute" style="margin:6px 0 10px">Úsalos siempre: si el vídeo suena por el altavoz, el micro lo oye y se mezcla con tu voz. Mejor con cable: los Bluetooth añaden retardo y en iPhone empeoran el micro.</p>
+          <b id="sgHpT">3 · Auriculares</b>
+          <p class="small mute" style="margin:6px 0 10px">Úsalos siempre: si la canción suena por el altavoz, el micro lo oye y se mezcla con tu voz. Mejor con cable: los Bluetooth añaden retardo y en iPhone empeoran el micro.</p>
           <div class="seg" id="sgBt"><button data-v="0">🎧 Con cable</button><button data-v="1">Bluetooth</button></div>
         </div>
         <div id="sgMsg"></div>
@@ -1743,7 +1750,7 @@ $('#raFile').onchange=async e=>{const file=e.target.files[0];e.target.value='';i
   catch(err){$('#raStatus').innerHTML='<div class="err">No he podido leer ese audio. Prueba con un archivo mp3, m4a o wav.</div>'}};
 
 /* ================= Canta conmigo ================= */
-var SG={yt:null,ytId:null,ytReady:false,ytState:-1,ytBlocked:false,title:'',author:'',au:null,auUrl:null,auName:'',ref:null,refNotes:null,refOff:0,refMed:null,keyRef:null,off:0,shift:0,
+var SG={yt:null,ytId:null,ytReady:false,ytState:-1,ytBlocked:false,title:'',author:'',au:null,auUrl:null,auName:'',ref:null,refNotes:null,refOff:0,refMed:null,keyRef:null,off:0,shift:0,auFile:null,
   frames:[],secFrames:[],on:false,mode:'full',sec:null,anc:null,lastCt:null,wake:null,res:null,center:null,alignMsg:'',shiftT:0,hintT:0};
 const sgLat=()=>prefs.bt==='1'?.25:.08;
 const fold=d=>((d%12)+18)%12-6;
@@ -1798,21 +1805,29 @@ function sgOnEnded(){if(!SG.on)return;if(SG.mode==='sec')sgEndSection();else sgF
 
 /* --- audio subido: reproductor y melodía --- */
 function sgShowAudioCard(){const has=!!SG.au&&!SG.ytId;$('#auCard').style.display=has?'flex':'none';if(has)$('#auTitle').textContent=SG.auName||'Audio'}
-async function sgUseFile(file){
+async function sgUseFile(file,asSong){
+  if(asSong&&SG.ytId)sgClearVideo(true);
   sgMsg('');const st=s=>sgRefStatus(s);st('Leyendo «'+esc(file.name)+'»…');
   try{await ensureCtx();const ab=await file.arrayBuffer();const buf=await new Promise((ok,ko)=>{const r=AU.ctx.decodeAudioData(ab,ok,ko);if(r&&r.then)r.then(ok,ko)});
     const ref=await extractMelody(buf,p=>st('Sacando la melodía… '+Math.round(p*100)+'%'));
     if(SG.auUrl)URL.revokeObjectURL(SG.auUrl);SG.auUrl=URL.createObjectURL(file);
     if(SG.au){SG.au.pause()}SG.au=new Audio(SG.auUrl);SG.au.preload='auto';SG.au.setAttribute('playsinline','');SG.au.addEventListener('ended',sgOnEnded);
-    SG.auName=file.name.replace(/\.[^.]+$/,'');SG.refFromSave=false;
+    SG.auName=file.name.replace(/\.[^.]+$/,'');SG.auFile=file;SG.refFromSave=false;
     if(!SG.ytId){SG.off=0;SG.title=SG.auName}
     sgSetRef(ref);
-    if(!SG.refNotes||SG.refNotes.length<8){SG.ref=null;SG.refNotes=null;st('<span style="color:var(--warn)">No encuentro una voz cantando en este audio (¿es solo instrumental o karaoke?). Haré el análisis básico de afinación. Para comparar nota a nota, sube la canción con voz o la pista de voz sola.</span>')}
-    else st('<span style="color:var(--ok)">✓ Melodía de la voz lista</span> · '+SG.refNotes.length+' notas'+(SG.keyRef?' · '+SG.keyRef.name:'')+(SG.ytId?' · la sincronizo con el vídeo al terminar tu primera toma':'')+'<br><span class="small mute">'+(ref.stereo?'':'Audio en mono: separo peor la voz de la base. ')+'Saco la voz de la mezcla: funciona mejor si la voz se oye clara. Si alguna nota no cuadra, sube la versión solo voz.</span>');
+    if(!SG.refNotes||SG.refNotes.length<8){SG.ref=null;SG.refNotes=null;st('<span style="color:var(--warn)">No encuentro una voz cantando en este audio (¿es solo instrumental o karaoke?). Haré el análisis básico de afinación. Para comparar nota a nota, '+(SG.ytId?'sube la canción con voz o la pista de voz sola':'elige la canción con voz')+'.</span>')}
+    else st('<span style="color:var(--ok)">✓ Melodía de la voz lista</span> · '+SG.refNotes.length+' notas'+(SG.keyRef?' · '+SG.keyRef.name:'')+(SG.ytId?' · la sincronizo con el vídeo al terminar tu primera toma':'')+'<br><span class="small mute">'+(ref.stereo?'':'Audio en mono: separo peor la voz de la base. ')+'Saco la voz de la mezcla: funciona mejor si la voz se oye clara. Si alguna nota no cuadra, '+(SG.ytId?'sube la versión solo voz':'prueba con una versión donde la voz se oiga más')+'.</span>');
     sgShowAudioCard();sgRenderPrev();sgUpd()}
   catch(e){console.error(e);st('<span style="color:var(--bad)">No he podido leer ese audio. Prueba con mp3, m4a o wav.</span>')}}
-function sgRefStatus(h){$('#sgRefSt').innerHTML=h;$('#sgNoRef').style.display=SG.ref||SG.au?'':'none'}
-function sgClearRef(){SG.ref=null;SG.refNotes=null;SG.keyRef=null;SG.refMed=null;if(SG.au){SG.au.pause();SG.au=null}SG.auName='';if(SG.ytId)LS.set('sg_mel_'+SG.ytId,null);sgRefStatus('');sgShowAudioCard();sgRenderPrev();sgUpd()}
+function sgRefStatus(h){$('#sgRefSt').innerHTML=h;$('#sgSongSt').innerHTML=h;$('#sgNoRef').style.display=SG.ref||SG.au?'':'none';sgSongBtns()}
+function sgSongBtns(){const has=!!SG.au&&!SG.ytId;$('#sgNoSong').style.display=has?'':'none';$('#sgSongBtn').textContent=has?'🎵 Cambiar MP3':'🎵 Elegir MP3'}
+// Origen de la canción: YouTube o un archivo del dispositivo
+function sgSetSrc(v){v=v==='file'?'file':'yt';SG.src=v;if(prefs.sgSrc!==v){prefs.sgSrc=v;savePrefs()}
+  $$('#sgSrc button').forEach(b=>b.classList.toggle('sel',b.dataset.v===v));
+  $('#sgSrcYt').style.display=v==='yt'?'':'none';$('#sgSrcFile').style.display=v==='file'?'':'none';
+  $('#sgRefCard').style.display=v==='yt'?'':'none';$('#sgHpT').textContent=(v==='yt'?'3':'2')+' · Auriculares';
+  if(v==='file'&&SG.ytId)sgClearVideo(true);sgSongBtns();sgUpd()}
+function sgClearRef(){SG.ref=null;SG.refNotes=null;SG.keyRef=null;SG.refMed=null;if(SG.au){SG.au.pause();SG.au=null}SG.auName='';SG.auFile=null;if(SG.ytId)LS.set('sg_mel_'+SG.ytId,null);sgRefStatus('');sgShowAudioCard();sgRenderPrev();sgUpd()}
 
 /* --- melodía principal (voz) de una mezcla: máscara de centro estéreo, saliencia por suma de armónicos,
    Viterbi con estado «sin voz» y filtro de contornos (la voz destaca y nunca es perfectamente recta) --- */
@@ -1959,21 +1974,35 @@ function sgKey(){return SG.ytId||(SG.auName?'f:'+SG.auName:null)}
 function sgSave(score){const k=sgKey();if(!k||!prof)return;let L=sgSongs();const old=L.find(s=>s.k===k)||{};L=L.filter(s=>s.k!==k);
   L.unshift({k,yt:SG.ytId,title:SG.title||SG.auName||k,off:SG.off,last:score,best:Math.max(score,old.best||0),n:(old.n||0)+1,d:today(),ref:!!SG.ref});
   const drop=L.slice(15);L=L.slice(0,15);LS.set('sg_songs_'+prof.id,L);drop.forEach(s=>{if(s.yt)try{localStorage.removeItem('rsn_sg_mel_'+s.yt)}catch(e){}});
+  if(!SG.ytId&&SG.auFile&&!SG.auFile.example)adbSave(k,SG.auFile);
   if(SG.ytId&&SG.ref&&!SG.refFromSave){LS.set('sg_mel_'+SG.ytId,{v:2,hop:SG.ref.hop,t0:SG.ref.t0||0,m:melEnc(SG.ref.m)});SG.refFromSave=true}}
 function sgRenderSongs(){const L=sgSongs();$('#sgSongsBox').style.display=L.length?'':'none';
   $('#sgSongs').innerHTML=L.map((s,i)=>`<button class="sgsong" data-i="${i}">${s.yt?`<img src="https://i.ytimg.com/vi/${esc(s.yt)}/mqdefault.jpg" alt="" loading="lazy">`:'<span class="ph">🎵</span>'}<div class="sp" style="min-width:0"><div class="tt">${esc(s.title)}</div><div class="small mute">${esc(s.d)} · ${+s.n||0} ${+s.n===1?'vez':'veces'}${s.ref?' · con melodía':''}</div></div><div style="text-align:right"><b style="color:${gcol(s.last)}">${fmt(s.last)}</b><div class="small mute">mejor ${fmt(s.best)}</div></div></button>`).join('');
-  $$('#sgSongs .sgsong').forEach(b=>b.onclick=()=>{const s=L[+b.dataset.i];if(s.yt){$('#sgUrl').value='https://youtu.be/'+s.yt;sgSetVideo(s.yt);window.scrollTo({top:0,behavior:'smooth'})}else toast('Vuelve a subir el audio de «'+s.title+'»',3500)})}
+  $$('#sgSongs .sgsong').forEach(b=>b.onclick=()=>{const s=L[+b.dataset.i];if(s.yt){$('#sgUrl').value='https://youtu.be/'+s.yt;if(SG.src!=='yt')sgSetSrc('yt');sgSetVideo(s.yt);window.scrollTo({top:0,behavior:'smooth'})}else sgOpenFileSong(s)})}
+async function sgOpenFileSong(s){sgSetSrc('file');window.scrollTo({top:0,behavior:'smooth'});
+  if(s.k==='f:Canción de ejemplo'){sgUseFile(sgExampleFile(),true);return}
+  const r=await adbGet(s.k);if(r&&r.blob){sgUseFile(new File([r.blob],r.name||(s.title+'.mp3'),{type:r.type||r.blob.type||'audio/mpeg'}),true)}
+  else toast('Ya no tengo guardado «'+s.title+'». Vuelve a elegir el MP3.',3500)}
+/* --- archivos de canciones guardados en el dispositivo (IndexedDB), para reabrirlos desde «Tus canciones» --- */
+let adbP=null;
+function adbOpen(){if(adbP)return adbP;adbP=new Promise((ok,ko)=>{try{const r=indexedDB.open('rsn_audio',1);r.onupgradeneeded=()=>r.result.createObjectStore('a');r.onsuccess=()=>ok(r.result);r.onerror=()=>ko(r.error)}catch(e){ko(e)}});adbP.catch(()=>{adbP=null});return adbP}
+async function adbGet(k){try{const db=await adbOpen();return await new Promise((ok,ko)=>{const r=db.transaction('a','readonly').objectStore('a').get(k);r.onsuccess=()=>ok(r.result||null);r.onerror=()=>ko(r.error)})}catch(e){return null}}
+const ADB_KEEP=6,ADB_MAX=60e6;
+async function adbSave(k,file){if(!file||file.size>ADB_MAX)return;try{const db=await adbOpen();
+  await new Promise((ok,ko)=>{const t=db.transaction('a','readwrite'),s=t.objectStore('a');s.put({name:file.name,type:file.type,t:Date.now(),blob:file},k);t.oncomplete=ok;t.onerror=t.onabort=()=>ko(t.error)});
+  await new Promise((ok,ko)=>{const t=db.transaction('a','readwrite'),s=t.objectStore('a'),L=[];s.openCursor().onsuccess=e=>{const c=e.target.result;if(c){L.push([c.key,c.value&&c.value.t||0]);c.continue()}else L.sort((a,b)=>b[1]-a[1]).slice(ADB_KEEP).forEach(x=>s.delete(x[0]))};t.oncomplete=ok;t.onerror=t.onabort=()=>ko(t.error)})}
+  catch(e){console.warn('adb',e)}}
 
 /* --- pantalla --- */
-function openSing(){stopLoops();show('sing');sgView('setup');sgRenderPrev();sgRenderSongs();sgUpd();sgShowAudioCard();
+function openSing(){stopLoops();show('sing');sgView('setup');sgSetSrc(SG.src||prefs.sgSrc||'yt');sgRenderPrev();sgRenderSongs();sgUpd();sgShowAudioCard();
   $$('#sgBt button').forEach(b=>{b.classList.toggle('sel',b.dataset.v===(prefs.bt||'0'));b.onclick=()=>{prefs.bt=b.dataset.v;savePrefs();$$('#sgBt button').forEach(x=>x.classList.toggle('sel',x===b))}})}
 function sgView(v){$('#sgSetup').style.display=v==='setup'?'':'none';$('#sgLive').style.display=v==='live'?'':'none';$('#sgRes').style.display=v==='res'?'':'none'}
 function sgMsg(h,cls){$('#sgMsg').innerHTML=h?`<div class="${cls==='err'?'err':'tip'}">${h}</div>`:''}
 // Quitar el vídeo actual (tras un error o para cambiar) y dejar el campo listo para otro
-function sgClearVideo(){plPause();if(SG.yt){try{SG.yt.destroy()}catch(e){}SG.yt=null}
+function sgClearVideo(quiet){plPause();if(SG.yt){try{SG.yt.destroy()}catch(e){}SG.yt=null}
   if(SG.refFromSave){SG.ref=null;SG.refNotes=null;SG.keyRef=null;SG.refMed=null;SG.refFromSave=false;sgRefStatus('')}
   SG.ytId=null;SG.ytReady=false;SG.ytBlocked=false;SG.title='';SG.author='';const w=$('#ytWrap');w.innerHTML='';w.style.display='none';
-  $('#sgUrl').value='';sgMsg('');sgShowAudioCard();sgRenderPrev();sgUpd();setTimeout(()=>$('#sgUrl').focus(),50)}
+  $('#sgUrl').value='';sgMsg('');sgShowAudioCard();sgRenderPrev();sgUpd();if(!quiet)setTimeout(()=>$('#sgUrl').focus(),50)}
 function sgYtErr(msg){const q=(SG.title||'').replace(/\(.*?\)|\[.*?\]/g,'').trim();
   sgMsg(esc(msg)+'<div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn" id="sgErrNew">✕ Probar otro vídeo</button>'+(q?'<a class="btn ytbtn" target="_blank" rel="noopener" href="https://www.youtube.com/results?search_query='+encodeURIComponent(q+' karaoke')+'">▶ Buscar «karaoke» en YouTube</a>':'')+'</div>','err');
   const b=$('#sgErrNew');if(b)b.onclick=sgClearVideo;sgRenderPrev();sgUpd()}
@@ -2063,7 +2092,7 @@ function sgFinish(){sgStop();const fr=SG.frames.filter(f=>f.t>=0);
   if(SG.ytId&&SG.refNotes)sgAlign(fr);
   const T1=fr.length?fr[fr.length-1].t:0,key=SG.keyRef||keyOf(segN(runsOf(fr),0,.2));
   const all=sgEval(fr,0,T1+1,key);
-  if(all.vs<4){SG.res={err:`Apenas te he oído cantar (${fmt(all.vs,0)} s). Comprueba que el micro te oye (acércate o sube la voz) y que el vídeo suena por los auriculares.`};sgRenderRes();sgView('res');return}
+  if(all.vs<4){SG.res={err:`Apenas te he oído cantar (${fmt(all.vs,0)} s). Comprueba que el micro te oye (acércate o sube la voz) y que ${SG.ytId?'el vídeo':'la canción'} suena por los auriculares.`};sgRenderRes();sgView('res');return}
   // frases
   let ph=[];const t0=fr.find(f=>f.m!=null).t,t1=[...fr].reverse().find(f=>f.m!=null).t;
   if(all.hasRef){let cur=null;for(const n of SG.refNotes){const a=n.t0-SG.off,b=n.t1-SG.off;if(b<t0-.5||a>t1+.5)continue;if(cur&&a-cur.t1<.6)cur.t1=b;else{if(cur)ph.push(cur);cur={t0:a,t1:b}}}if(cur)ph.push(cur)}
@@ -2121,7 +2150,7 @@ function sgExampleFile(){const sr=22050,base=Math.round(profMid()),seq=[[null,.8
   const b=new ArrayBuffer(44+n*2),dv=new DataView(b),ws=(o,s)=>{for(let i=0;i<s.length;i++)dv.setUint8(o+i,s.charCodeAt(i))};
   ws(0,'RIFF');dv.setUint32(4,36+n*2,true);ws(8,'WAVE');ws(12,'fmt ');dv.setUint32(16,16,true);dv.setUint16(20,1,true);dv.setUint16(22,1,true);dv.setUint32(24,sr,true);dv.setUint32(28,sr*2,true);dv.setUint16(32,2,true);dv.setUint16(34,16,true);ws(36,'data');dv.setUint32(40,n*2,true);
   for(let i=0;i<n;i++)dv.setInt16(44+i*2,clamp(x[i],-1,1)*32767,true);
-  return new File([b],'Canción de ejemplo.wav',{type:'audio/wav'})}
+  const f=new File([b],'Canción de ejemplo.wav',{type:'audio/wav'});f.example=true;return f}
 
 /* --- eventos --- */
 $('#hSing').onclick=openSing;
@@ -2131,7 +2160,10 @@ $('#sgUrl').addEventListener('keydown',e=>{if(e.key==='Enter'){const v=$('#sgUrl
 $('#sgUrl').addEventListener('change',()=>{const v=$('#sgUrl').value.trim();if(v&&!parseYT(v)&&/^https?:|www\./i.test(v))sgMsg('Ese enlace no parece de YouTube. En la app de YouTube toca «Compartir» → «Copiar enlace».','err')});
 $('#sgPaste').onclick=async()=>{try{const t=await navigator.clipboard.readText();$('#sgUrl').value=t;const id=parseYT(t);if(id)sgSetVideo(id);else sgMsg('Lo que tienes copiado no es un enlace de YouTube.','err')}catch(e){$('#sgUrl').focus();toast('Mantén pulsado el cuadro y elige «Pegar»')}};
 $('#sgFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)sgUseFile(f)};
-$('#sgEx').onclick=()=>sgUseFile(sgExampleFile());
+$('#sgSong').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)sgUseFile(f,true)};
+$('#sgEx').onclick=()=>sgUseFile(sgExampleFile(),true);
+$('#sgNoSong').onclick=sgClearRef;
+$$('#sgSrc button').forEach(b=>b.onclick=()=>sgSetSrc(b.dataset.v));
 $('#sgNoRef').onclick=sgClearRef;
 $('#sgGo').onclick=()=>{if(!$('#sgGo').disabled)sgBegin('full',0)};
 $('#sgPause').onclick=()=>{if(plPlaying())plPause();else plPlay();setTimeout(sgUpdLiveBtns,150)};
@@ -2214,7 +2246,7 @@ function endWelcome(){LS.set('onb',1);if(prof)goHome();else{show('profiles');ren
 $('#wNext').onclick=()=>{if(wi<WSL.length-1){wi++;renderWelcome()}else endWelcome()};$('#wPrev').onclick=()=>{if(wi>0){wi--;renderWelcome()}};$('#wSkip').onclick=endWelcome;
 $('#hWelcome').onclick=openWelcome;
 // --- legal ---
-const PRIV=[["Resumen", ["Resonar funciona sin cuentas. Tu voz se analiza en tu propio dispositivo y no se graba ni se envía a ningún servidor."]], ["Qué se guarda y dónde", ["Perfiles (nombre, avatar, tipo de voz y rango), progreso, ajustes y canciones guardadas se almacenan solo en el navegador de tu dispositivo (almacenamiento local). No los recibimos.", "Puedes descargarlos con «Exportar copia» y borrarlos desde Ajustes. Si borras los datos del navegador o desinstalas la app, se pierden."]], ["Micrófono y audios", ["El sonido del micrófono se analiza en tiempo real en tu dispositivo para medir afinación, vibrato y resonancia. No se graba ni se transmite.", "Los audios que eliges en «Califica tu voz» o «Canta conmigo» también se procesan en el dispositivo y no se suben."]], ["Lo único que sale de tu dispositivo", ["<b>Comentarios</b>: si usas «Danos tu opinión», enviamos tu texto, el email si decides ponerlo y, si lo marcas, datos técnicos (navegador, tamaño de pantalla, versión de la app).", "<b>Informes de errores</b>: si la app falla, se envía un aviso técnico automático (mensaje de error, navegador, versión y pantalla de la app). No incluye tu voz, tu nombre de perfil ni tu progreso.", "<b>Estadísticas sin cookies</b>: usamos Cloudflare Web Analytics, que cuenta visitas de forma agregada sin cookies ni identificarte.", "<b>YouTube</b>: en «Canta conmigo» se carga el reproductor de YouTube en modo de privacidad mejorada (youtube-nocookie.com) y nuestro servidor consulta el título del vídeo. Al reproducir un vídeo se aplica la política de privacidad de Google."]], ["Cuánto tiempo", ["Los comentarios se conservan un máximo de 12 meses y los informes de errores, 30 días. Después se borran automáticamente."]], ["Base y derechos", ["Tratamos los comentarios y los informes de errores por interés legítimo en mantener y mejorar la app. Puedes pedir el acceso o la supresión de un comentario que hayas enviado escribiendo al contacto de abajo, y reclamar ante la Agencia Española de Protección de Datos (aepd.es).", "Si tienes menos de 14 años, no pongas tu email en los comentarios."]], ["Cookies", ["Resonar no usa cookies propias ni de publicidad. El almacenamiento local solo guarda lo necesario para que la app funcione."]]],LEGAL=[["Titular", ["{OWNER}. Contacto: {CONTACT}."]], ["Uso", ["Resonar es gratuita y se ofrece tal cual, sin garantías. Puede cambiar o dejar de estar disponible."]], ["Salud", ["Resonar es una herramienta de práctica: no diagnostica ni sustituye a un profesor de canto, logopeda u otorrino. Si algo duele, para."]], ["Propiedad", ["El diseño, los textos y el código de Resonar son de su titular. Los vídeos de YouTube pertenecen a sus autores y se muestran con el reproductor oficial."]]];
+const PRIV=[["Resumen", ["Resonar funciona sin cuentas. Tu voz se analiza en tu propio dispositivo y no se graba ni se envía a ningún servidor."]], ["Qué se guarda y dónde", ["Perfiles (nombre, avatar, tipo de voz y rango), progreso, ajustes y canciones guardadas se almacenan solo en el navegador de tu dispositivo (almacenamiento local). No los recibimos.", "Puedes descargarlos con «Exportar copia» y borrarlos desde Ajustes. Si borras los datos del navegador o desinstalas la app, se pierden."]], ["Micrófono y audios", ["El sonido del micrófono se analiza en tiempo real en tu dispositivo para medir afinación, vibrato y resonancia. No se graba ni se transmite.", "Los audios que eliges en «Califica tu voz» o «Canta conmigo» también se procesan en el dispositivo y no se suben. Las últimas canciones que cantas desde un archivo (hasta 6) se guardan en el navegador para que puedas volver a abrirlas desde «Tus canciones»."]], ["Lo único que sale de tu dispositivo", ["<b>Comentarios</b>: si usas «Danos tu opinión», enviamos tu texto, el email si decides ponerlo y, si lo marcas, datos técnicos (navegador, tamaño de pantalla, versión de la app).", "<b>Informes de errores</b>: si la app falla, se envía un aviso técnico automático (mensaje de error, navegador, versión y pantalla de la app). No incluye tu voz, tu nombre de perfil ni tu progreso.", "<b>Estadísticas sin cookies</b>: usamos Cloudflare Web Analytics, que cuenta visitas de forma agregada sin cookies ni identificarte.", "<b>YouTube</b>: en «Canta conmigo» se carga el reproductor de YouTube en modo de privacidad mejorada (youtube-nocookie.com) y nuestro servidor consulta el título del vídeo. Al reproducir un vídeo se aplica la política de privacidad de Google."]], ["Cuánto tiempo", ["Los comentarios se conservan un máximo de 12 meses y los informes de errores, 30 días. Después se borran automáticamente."]], ["Base y derechos", ["Tratamos los comentarios y los informes de errores por interés legítimo en mantener y mejorar la app. Puedes pedir el acceso o la supresión de un comentario que hayas enviado escribiendo al contacto de abajo, y reclamar ante la Agencia Española de Protección de Datos (aepd.es).", "Si tienes menos de 14 años, no pongas tu email en los comentarios."]], ["Cookies", ["Resonar no usa cookies propias ni de publicidad. El almacenamiento local solo guarda lo necesario para que la app funcione."]]],LEGAL=[["Titular", ["{OWNER}. Contacto: {CONTACT}."]], ["Uso", ["Resonar es gratuita y se ofrece tal cual, sin garantías. Puede cambiar o dejar de estar disponible."]], ["Salud", ["Resonar es una herramienta de práctica: no diagnostica ni sustituye a un profesor de canto, logopeda u otorrino. Si algo duele, para."]], ["Propiedad", ["El diseño, los textos y el código de Resonar son de su titular. Los vídeos de YouTube pertenecen a sus autores y se muestran con el reproductor oficial."]]];
 function legalFill(x){const owner=CFG.owner||'El responsable de Resonar';const contact=CFG.email?`<a href="mailto:${CFG.email}" style="color:var(--vib)">${CFG.email}</a> o el formulario «Danos tu opinión»`:'el formulario «Danos tu opinión» de la app';return x.replace('{OWNER}',owner).replace('{CONTACT}',contact)}
 function openLegal(which){const L=which==='legal'?LEGAL:PRIV;$('#lgTitle').textContent=which==='legal'?'Aviso legal':'Privacidad';
   $('#lgBody').innerHTML=L.map(([h,ps])=>'<h3>'+h+'</h3>'+ps.map(q=>'<p>'+legalFill(q)+'</p>').join('')).join('')+(which==='priv'?'<h3>Contacto</h3><p>'+legalFill('{OWNER}: {CONTACT}.')+'</p>':'');
