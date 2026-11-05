@@ -418,6 +418,7 @@ input.fbm{width:100%;font:inherit;font-size:16px;padding:12px 14px;border-radius
           <div id="sgSrcFile" style="display:none">
             <p class="small mute" style="margin:8px 0 10px">Elige una canción guardada en tu móvil o tablet (mp3, m4a, wav…). Se queda en tu dispositivo: no se sube a ningún sitio. Saco la melodía de la voz del propio audio.</p>
             <div class="row" style="flex-wrap:wrap;gap:8px"><label class="btn pri" for="sgSong" id="sgSongBtn">🎵 Elegir MP3</label><input type="file" id="sgSong" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.flac" style="display:none"><button class="btn ghost" id="sgEx">🎹 Canción de ejemplo</button><button class="btn ghost" id="sgNoSong" style="display:none">Quitar</button></div>
+            <label class="row small sgai" style="gap:8px;margin-top:10px;cursor:pointer"><input type="checkbox" class="sgAiChk"> <span>🤖 Separar la voz con IA (más precisa; la primera vez descarga unos 25 MB)</span></label>
             <div id="sgSongSt" class="small" style="margin-top:8px"></div>
           </div>
         </div>
@@ -425,12 +426,17 @@ input.fbm{width:100%;font:inherit;font-size:16px;padding:12px 14px;border-radius
           <div class="row"><b class="sp">2 · Comparar con la melodía</b><span class="chip">opcional</span></div>
           <p class="small mute" style="margin:6px 0 10px">Sube el audio de la misma canción (mp3, m4a…) y te diré si cantas las notas correctas. Mejor si la voz se oye clara. Sin audio, analizo solo tu afinación.</p>
           <div class="row" style="flex-wrap:wrap"><label class="btn" for="sgFile">🎵 Añadir audio</label><input type="file" id="sgFile" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.flac" style="display:none"><button class="btn ghost" id="sgNoRef" style="display:none">Quitar</button></div>
+          <label class="row small sgai" style="gap:8px;margin-top:10px;cursor:pointer"><input type="checkbox" class="sgAiChk"> <span>🤖 Separar la voz con IA (más precisa; la primera vez descarga unos 25 MB)</span></label>
           <div id="sgRefSt" class="small" style="margin-top:8px"></div>
         </div>
         <div class="card">
           <b id="sgHpT">3 · Auriculares</b>
           <p class="small mute" style="margin:6px 0 10px">Úsalos siempre: si la canción suena por el altavoz, el micro lo oye y se mezcla con tu voz. Mejor con cable: los Bluetooth añaden retardo y en iPhone empeoran el micro.</p>
           <div class="seg" id="sgBt"><button data-v="0">🎧 Con cable</button><button data-v="1">Bluetooth</button></div>
+        </div>
+        <div class="card">
+          <div class="row" style="flex-wrap:wrap;gap:8px"><b class="sp">🐢 Velocidad</b><div class="seg sgrate" id="sgRate"></div></div>
+          <p class="small mute" style="margin:6px 0 0">Más lenta para aprenderte las notas; el tono no cambia. También puedes cambiarla mientras cantas.</p>
         </div>
         <div id="sgMsg"></div>
         <button class="btn pri big wide" id="sgGo" disabled>🎤 Cantar</button>
@@ -445,6 +451,7 @@ input.fbm{width:100%;font:inherit;font-size:16px;padding:12px 14px;border-radius
         <div class="needle"><i id="sgNeedle"></i></div>
         <div class="needle-l"><span>↓ bajo</span><span>afinado</span><span>alto ↑</span></div>
         <div id="sgHint">Toca ▶ en el vídeo para empezar</div>
+        <div class="row" style="justify-content:center;margin-top:8px"><div class="seg sgrate" id="sgRateLive"></div></div>
         <div class="sgctl"><button class="btn" id="sgPause">⏸ Pausa</button><button class="btn pri" id="sgEnd">Terminar</button></div>
       </div>
       <!-- resultado -->
@@ -1750,9 +1757,10 @@ $('#raFile').onchange=async e=>{const file=e.target.files[0];e.target.value='';i
   catch(err){$('#raStatus').innerHTML='<div class="err">No he podido leer ese audio. Prueba con un archivo mp3, m4a o wav.</div>'}};
 
 /* ================= Canta conmigo ================= */
-var SG={yt:null,ytId:null,ytReady:false,ytState:-1,ytBlocked:false,title:'',author:'',au:null,auUrl:null,auName:'',ref:null,refNotes:null,refOff:0,refMed:null,keyRef:null,off:0,shift:0,auFile:null,
+var SG={yt:null,ytId:null,ytReady:false,ytState:-1,ytBlocked:false,title:'',author:'',au:null,auUrl:null,auName:'',ref:null,refNotes:null,refOff:0,refMed:null,keyRef:null,off:0,shift:0,auFile:null,rate:1,
   frames:[],secFrames:[],on:false,mode:'full',sec:null,anc:null,lastCt:null,wake:null,res:null,center:null,alignMsg:'',shiftT:0,hintT:0};
-const sgLat=()=>prefs.bt==='1'?.25:.08;
+const sgLat=()=>(prefs.bt==='1'?.25:.08)*(SG.rate||1);
+const SG_RATES=[.5,.75,1,1.25];
 const fold=d=>((d%12)+18)%12-6;
 const mmss=t=>{t=Math.max(0,t);return Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0')};
 const pcOf=q=>((Math.round(q)%12)+12)%12;
@@ -1764,11 +1772,17 @@ function plTime(){const k=plKind();if(k==='au')return SG.au.currentTime||0;if(k!
   let ct=0;try{ct=SG.yt.getCurrentTime()||0}catch(e){}const now=performance.now()/1000;
   if(SG.ytState!==1){SG.anc=null;return ct}
   if(!SG.anc){SG.anc={v:ct,p:now};SG.lastCt=ct;return ct}
-  const est=SG.anc.v+(now-SG.anc.p);
+  const est=SG.anc.v+(now-SG.anc.p)*(SG.rate||1);
   if(Math.abs(est-ct)>.45){SG.anc={v:ct,p:now};SG.lastCt=ct;return ct}
   if(ct!==SG.lastCt){SG.lastCt=ct;SG.anc.v+=(ct-est)*.15}
   return est}
-function plPlay(){const k=plKind();try{if(k==='yt')SG.yt.playVideo();else if(k==='au'){const p=SG.au.play();if(p&&p.catch)p.catch(()=>{})}}catch(e){}}
+function plPlay(){const k=plKind();plRate();try{if(k==='yt')SG.yt.playVideo();else if(k==='au'){const p=SG.au.play();if(p&&p.catch)p.catch(()=>{})}}catch(e){}}
+// Velocidad: el navegador y YouTube mantienen el tono al cambiarla
+function plRate(){const r=SG.rate||1,k=plKind();try{if(k==='au'){const a=SG.au;a.preservesPitch=true;a.webkitPreservesPitch=true;a.mozPreservesPitch=true;a.playbackRate=r}
+  else if(k==='yt'&&SG.yt.setPlaybackRate&&SG.yt.getPlaybackRate&&SG.yt.getPlaybackRate()!==r)SG.yt.setPlaybackRate(r)}catch(e){}}
+function sgSetRate(r){if(!SG_RATES.includes(r))r=1;SG.rate=r;SG.anc=null;plRate();sgRenderRate()}
+function sgRenderRate(){const h=SG_RATES.map(r=>`<button data-r="${r}" class="${r===(SG.rate||1)?'sel':''}">${String(r).replace('.',',')}×</button>`).join('');
+  $$('.sgrate').forEach(el=>{el.innerHTML=h;el.querySelectorAll('button').forEach(b=>b.onclick=()=>sgSetRate(+b.dataset.r))})}
 function plPause(){const k=plKind();try{if(k==='yt')SG.yt.pauseVideo();else if(k==='au')SG.au.pause()}catch(e){}}
 function plSeek(t){const k=plKind();SG.anc=null;try{if(k==='yt')SG.yt.seekTo(t,true);else if(k==='au')SG.au.currentTime=t}catch(e){}}
 function plDur(){const k=plKind();try{if(k==='yt')return SG.yt.getDuration()||0;if(k==='au')return SG.au.duration||0}catch(e){}return 0}
@@ -1799,8 +1813,8 @@ async function sgSetVideo(id){
   const pv={playsinline:1,rel:0,modestbranding:1,iv_load_policy:3};if(location.origin&&location.origin!=='null')pv.origin=location.origin;
   SG.yt=new YT.Player('ytBox',{videoId:id,host:'https://www.youtube-nocookie.com',width:'100%',height:'100%',playerVars:pv,
     events:{onReady:()=>{SG.ytReady=true;try{const d=SG.yt.getVideoData();if(d&&d.title&&!SG.title){SG.title=d.title;SG.author=d.author||''}}catch(e){}sgRenderPrev();sgUpd()},
-      onStateChange:e=>sgState(e.data),onError:e=>{if(SG.on)sgFinish();SG.ytBlocked=true;sgYtErr(YT_ERR[e.data]||('YouTube ha dado un error ('+e.data+').'))}}})}
-function sgState(s){SG.ytState=s;if(s===1){$('#sgHint').style.display='none'}if(s===0)sgOnEnded();sgUpdLiveBtns()}
+      onStateChange:e=>sgState(e.data),onPlaybackRateChange:e=>{if(SG_RATES.includes(e.data)&&e.data!==SG.rate){SG.rate=e.data;SG.anc=null;sgRenderRate()}},onError:e=>{if(SG.on)sgFinish();SG.ytBlocked=true;sgYtErr(YT_ERR[e.data]||('YouTube ha dado un error ('+e.data+').'))}}})}
+function sgState(s){SG.ytState=s;if(s===1){$('#sgHint').style.display='none';plRate()}if(s===0)sgOnEnded();sgUpdLiveBtns()}
 function sgOnEnded(){if(!SG.on)return;if(SG.mode==='sec')sgEndSection();else sgFinish()}
 
 /* --- audio subido: reproductor y melodía --- */
@@ -1817,9 +1831,12 @@ async function sgUseFile(file,asSong){
     sgSetRef(ref);
     if(!SG.refNotes||SG.refNotes.length<8){SG.ref=null;SG.refNotes=null;st('<span style="color:var(--warn)">No encuentro una voz cantando en este audio (¿es solo instrumental o karaoke?). Haré el análisis básico de afinación. Para comparar nota a nota, '+(SG.ytId?'sube la canción con voz o la pista de voz sola':'elige la canción con voz')+'.</span>')}
     else st('<span style="color:var(--ok)">✓ Melodía de la voz lista</span> · '+SG.refNotes.length+' notas'+(SG.keyRef?' · '+SG.keyRef.name:'')+(SG.ytId?' · la sincronizo con el vídeo al terminar tu primera toma':'')+'<br><span class="small mute">'+(ref.stereo?'':'Audio en mono: separo peor la voz de la base. ')+'Saco la voz de la mezcla: funciona mejor si la voz se oye clara. Si alguna nota no cuadra, '+(SG.ytId?'sube la versión solo voz':'prueba con una versión donde la voz se oiga más')+'.</span>');
-    sgShowAudioCard();sgRenderPrev();sgUpd()}
+    sgShowAudioCard();sgRenderPrev();sgUpd();
+    if(prefs.sgAi!=='0')sgAiRef(buf,file)}
   catch(e){console.error(e);st('<span style="color:var(--bad)">No he podido leer ese audio. Prueba con mp3, m4a o wav.</span>')}}
-function sgRefStatus(h){$('#sgRefSt').innerHTML=h;$('#sgSongSt').innerHTML=h;$('#sgNoRef').style.display=SG.ref||SG.au?'':'none';sgSongBtns()}
+function sgRefStatus(h){SG.refH=h;SG.aiH='';sgStRender()}
+function sgAiStatus(h){SG.aiH=h;sgStRender()}
+function sgStRender(){const h=(SG.refH||'')+(SG.aiH?'<div style="margin-top:6px">'+SG.aiH+'</div>':'');$('#sgRefSt').innerHTML=h;$('#sgSongSt').innerHTML=h;$('#sgNoRef').style.display=SG.ref||SG.au?'':'none';sgSongBtns()}
 function sgSongBtns(){const has=!!SG.au&&!SG.ytId;$('#sgNoSong').style.display=has?'':'none';$('#sgSongBtn').textContent=has?'🎵 Cambiar MP3':'🎵 Elegir MP3'}
 // Origen de la canción: YouTube o un archivo del dispositivo
 function sgSetSrc(v){v=v==='file'?'file':'yt';SG.src=v;if(prefs.sgSrc!==v){prefs.sgSrc=v;savePrefs()}
@@ -1827,7 +1844,37 @@ function sgSetSrc(v){v=v==='file'?'file':'yt';SG.src=v;if(prefs.sgSrc!==v){prefs
   $('#sgSrcYt').style.display=v==='yt'?'':'none';$('#sgSrcFile').style.display=v==='file'?'':'none';
   $('#sgRefCard').style.display=v==='yt'?'':'none';$('#sgHpT').textContent=(v==='yt'?'3':'2')+' · Auriculares';
   if(v==='file'&&SG.ytId)sgClearVideo(true);sgSongBtns();sgUpd()}
-function sgClearRef(){SG.ref=null;SG.refNotes=null;SG.keyRef=null;SG.refMed=null;if(SG.au){SG.au.pause();SG.au=null}SG.auName='';SG.auFile=null;if(SG.ytId)LS.set('sg_mel_'+SG.ytId,null);sgRefStatus('');sgShowAudioCard();sgRenderPrev();sgUpd()}
+/* --- separación de la voz con IA (Open-Unmix en un worker, ver ai/sep.mjs) --- */
+const AI={w:null,job:0,busy:false,cb:{}};
+function aiWorker(){if(!AI.w){AI.w=new Worker('ai/sep.mjs',{type:'module'});AI.w.onmessage=e=>{const c=AI.cb[e.data.id];if(c)c(e.data)};AI.w.onerror=e=>{const c=AI.cb[AI.job];if(c)c({error:e.message||'worker'})}}return AI.w}
+function aiCancel(){if(AI.busy&&AI.w){AI.w.terminate();AI.w=null}AI.busy=false;AI.cb={};SG.aiFile=null}
+// Pasa el audio a 44,1 kHz estéreo (lo que espera el modelo), como mucho 10 min
+async function aiResample(buf){const sr=44100,len=Math.ceil(Math.min(buf.duration,600)*sr);
+  if(buf.sampleRate===sr&&buf.numberOfChannels>=2){return{L:buf.getChannelData(0).slice(0,len),R:buf.getChannelData(1).slice(0,len)}}
+  const oc=new OfflineAudioContext(2,len,sr),src=oc.createBufferSource();src.buffer=buf;src.connect(oc.destination);src.start();const r=await oc.startRendering();
+  return{L:r.getChannelData(0),R:r.getChannelData(1)}}
+function aiSeparate(L,R,onp){return new Promise((ok,ko)=>{const id=++AI.job,w=aiWorker();AI.busy=true;
+  AI.cb[id]=d=>{if(d.error){AI.busy=false;delete AI.cb[id];ko(new Error(d.error))}else if(d.done){AI.busy=false;delete AI.cb[id];ok(d)}else onp(d)};
+  w.postMessage({id,L,R},[L.buffer,R.buffer])})}
+// Quita las notas de los trozos donde la voz separada casi no suena (restos de la base)
+function aiGate(ref,v,sr){const out=Float32Array.from(ref.m),w=Math.round(ref.hop*sr),e=new Float32Array(ref.m.length);
+  for(let k=0;k<ref.m.length;k++){const c=Math.round(((ref.t0||0)+k*ref.hop)*sr);let a=0,n=0;for(let i=Math.max(0,c-w);i<Math.min(v.L.length,c+w);i+=2){const x=v.L[i]+v.R[i];a+=x*x;n++}e[k]=Math.sqrt(a/Math.max(1,n))}
+  const srt=Array.from(e).sort((a,b)=>a-b),p90=srt[Math.floor(srt.length*.9)]||0;for(let k=0;k<out.length;k++)if(e[k]<.12*p90)out[k]=NaN;return{...ref,m:out}}
+async function sgAiRef(buf,file){aiCancel();if(typeof Worker==='undefined'||typeof OfflineAudioContext==='undefined')return;SG.aiFile=file;
+  const live=()=>SG.aiFile===file,pc=p=>Math.round(p*100)+'%';
+  sgAiStatus('<span class="mute">🤖 Preparando la IA…</span>');
+  try{const {L,R}=await aiResample(buf);if(!live())return;
+    const d=await aiSeparate(L,R,m=>{if(live())sgAiStatus('<span class="mute">🤖 '+(m.stage==='load'?'Descargando la IA… '+pc(m.p):'Separando la voz de la base… '+pc(m.p))+' · puedes cantar mientras</span>')});
+    if(!live())return;sgAiStatus('<span class="mute">🤖 Sacando la melodía de la voz separada…</span>');
+    let ref=await extractMelodyLR({L:d.L,R:d.R,sr:44100},{},null);ref=aiGate(ref,d,44100);ref.stereo=true;ref.ai=true;if(!live())return;
+    const n0=SG.refNotes?SG.refNotes.length:0,apply=()=>{const keep={ref:SG.ref,notes:SG.refNotes,key:SG.keyRef,med:SG.refMed,off:SG.refOff};sgSetRef(ref);
+      if(!SG.refNotes||SG.refNotes.length<8){SG.ref=keep.ref;SG.refNotes=keep.notes;SG.keyRef=keep.key;SG.refMed=keep.med;SG.refOff=keep.off;sgAiStatus('<span class="mute">🤖 La IA no ha encontrado una voz clara: mantengo la melodía anterior.</span>');return}
+      SG.refFromSave=false;sgRefStatus('<span style="color:var(--ok)">✓ Melodía de la voz lista</span> · '+SG.refNotes.length+' notas'+(SG.keyRef?' · '+SG.keyRef.name:'')+(SG.ytId?' · la sincronizo con el vídeo al terminar tu primera toma':''));
+      sgAiStatus('<span class="small mute">🤖 Voz separada de la base con IA'+(d.ms?' en '+Math.round(d.ms/1000)+' s':'')+'.</span>');sgUpd()};
+    if(SG.on){SG.aiPending=apply;sgAiStatus('<span class="mute">🤖 Voz separada: la uso en tu próxima toma.</span>')}else apply()}
+  catch(e){console.warn('ia',e);if(live())sgAiStatus('<span class="mute">🤖 No he podido separar la voz en este dispositivo ('+esc(String(e.message||e).slice(0,80))+'). Uso la melodía normal.</span>')}
+  finally{if(live())SG.aiFile=null}}
+function sgClearRef(){aiCancel();SG.ref=null;SG.refNotes=null;SG.keyRef=null;SG.refMed=null;if(SG.au){SG.au.pause();SG.au=null}SG.auName='';SG.auFile=null;if(SG.ytId)LS.set('sg_mel_'+SG.ytId,null);sgRefStatus('');sgShowAudioCard();sgRenderPrev();sgUpd()}
 
 /* --- melodía principal (voz) de una mezcla: máscara de centro estéreo, saliencia por suma de armónicos,
    Viterbi con estado «sin voz» y filtro de contornos (la voz destaca y nunca es perfectamente recta) --- */
@@ -1994,7 +2041,7 @@ async function adbSave(k,file){if(!file||file.size>ADB_MAX)return;try{const db=a
   catch(e){console.warn('adb',e)}}
 
 /* --- pantalla --- */
-function openSing(){stopLoops();show('sing');sgView('setup');sgSetSrc(SG.src||prefs.sgSrc||'yt');sgRenderPrev();sgRenderSongs();sgUpd();sgShowAudioCard();
+function openSing(){stopLoops();show('sing');sgView('setup');sgSetSrc(SG.src||prefs.sgSrc||'yt');sgRenderRate();sgRenderPrev();sgRenderSongs();sgUpd();sgShowAudioCard();
   $$('#sgBt button').forEach(b=>{b.classList.toggle('sel',b.dataset.v===(prefs.bt||'0'));b.onclick=()=>{prefs.bt=b.dataset.v;savePrefs();$$('#sgBt button').forEach(x=>x.classList.toggle('sel',x===b))}})}
 function sgView(v){$('#sgSetup').style.display=v==='setup'?'':'none';$('#sgLive').style.display=v==='live'?'':'none';$('#sgRes').style.display=v==='res'?'':'none'}
 function sgMsg(h,cls){$('#sgMsg').innerHTML=h?`<div class="${cls==='err'?'err':'tip'}">${h}</div>`:''}
@@ -2016,6 +2063,7 @@ async function sgWake(on){try{if(on){if(!SG.wake&&navigator.wakeLock){SG.wake=aw
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&SG.on)sgWake(true)});
 
 async function sgBegin(mode,from){
+  if(SG.aiPending&&mode==='full'){const f=SG.aiPending;SG.aiPending=null;f()}
   plSeek(from);plPlay();// dentro del gesto, para iPhone/iPad
   try{await startInput()}catch(e){plPause();sgView(SG.res?'res':'setup');sgMsg(micErrorMsg(e),'err');return}
   stopLoops();SG.on=true;SG.mode=mode;if(mode==='full'){SG.frames=[];SG.alignMsg=''}SG.secFrames=[];SG.center=null;SG.ndl=mkNeedle();SG.hintT=performance.now();
@@ -2142,10 +2190,10 @@ function sgEndSection(){sgStop();const m=SG.res.moments[SG.sec.i];const e=sgEval
   if(e.vs>=.5)m.after=e.score;else toast('No te he oído en ese trozo');sgRenderRes();sgView('res');setTimeout(()=>{const el=$('#sgmo'+SG.sec.i);if(el)el.scrollIntoView({behavior:'smooth',block:'center'})},60)}
 
 /* --- canción de ejemplo (para probar sin YouTube) --- */
-function sgExampleFile(){const sr=22050,base=Math.round(profMid()),seq=[[null,.8]].concat(SONG,[[null,1]],SONG.map(x=>[x[0]==null?null:x[0]+2,x[1],x[2]]),[[null,1]]);
+function sgExampleFile(){const sr=22050,base=Math.round(profMid())+(profMid()<62?12:0),seq=[[null,.8]].concat(SONG,[[null,1]],SONG.map(x=>[x[0]==null?null:x[0]+2,x[1],x[2]]),[[null,1]]);
   const T=seq.reduce((a,x)=>a+x[1],0),n=Math.floor(T*sr),x=new Float32Array(n);let t0=0;
   for(const[r,d,v]of seq){if(r!=null){const f=m2hz(base+r),i0=Math.floor(t0*sr),i1=Math.min(n,Math.floor((t0+d)*sr));let ph=0;
-      for(let i=i0;i<i1;i++){const tt=(i-i0)/sr,vb=v&&tt>.3?Math.sin(2*Math.PI*5.5*tt)*.0045:0;ph+=2*Math.PI*f*(1+vb)/sr;const env=Math.min(1,tt/.03,(i1-i)/sr/.06);x[i]+=env*.28*(Math.sin(ph)+.45*Math.sin(2*ph)+.2*Math.sin(3*ph))}}t0+=d}
+      for(let i=i0;i<i1;i++){const tt=(i-i0)/sr,vb=(v&&tt>.3?Math.sin(2*Math.PI*5.5*tt)*.0045:0)+.006*Math.sin(2*Math.PI*3.3*tt+r)+.004*Math.sin(2*Math.PI*6.1*tt+2*r);ph+=2*Math.PI*f*(1+vb)/sr;const env=Math.min(1,tt/.03,(i1-i)/sr/.06);let hs=0;for(let k=1;k<=10;k++)hs+=Math.sin(k*ph)*(k<4?[1,.7,.55][k-1]:1.6/k);x[i]+=env*.2*hs}}t0+=d}
   for(let i=0;i<n;i++)x[i]+=.035*Math.sin(2*Math.PI*m2hz(base-12)*i/sr)*(.6+.4*Math.sin(2*Math.PI*.5*i/sr));
   const b=new ArrayBuffer(44+n*2),dv=new DataView(b),ws=(o,s)=>{for(let i=0;i<s.length;i++)dv.setUint8(o+i,s.charCodeAt(i))};
   ws(0,'RIFF');dv.setUint32(4,36+n*2,true);ws(8,'WAVE');ws(12,'fmt ');dv.setUint32(16,16,true);dv.setUint16(20,1,true);dv.setUint16(22,1,true);dv.setUint32(24,sr,true);dv.setUint32(28,sr*2,true);dv.setUint16(32,2,true);dv.setUint16(34,16,true);ws(36,'data');dv.setUint32(40,n*2,true);
@@ -2164,6 +2212,7 @@ $('#sgSong').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)sgUse
 $('#sgEx').onclick=()=>sgUseFile(sgExampleFile(),true);
 $('#sgNoSong').onclick=sgClearRef;
 $$('#sgSrc button').forEach(b=>b.onclick=()=>sgSetSrc(b.dataset.v));
+$$('.sgAiChk').forEach(c=>{c.checked=prefs.sgAi!=='0';c.onchange=()=>{prefs.sgAi=c.checked?'1':'0';savePrefs();$$('.sgAiChk').forEach(x=>x.checked=c.checked);if(!c.checked){aiCancel();sgAiStatus('')}}});
 $('#sgNoRef').onclick=sgClearRef;
 $('#sgGo').onclick=()=>{if(!$('#sgGo').disabled)sgBegin('full',0)};
 $('#sgPause').onclick=()=>{if(plPlaying())plPause();else plPlay();setTimeout(sgUpdLiveBtns,150)};
@@ -2246,7 +2295,7 @@ function endWelcome(){LS.set('onb',1);if(prof)goHome();else{show('profiles');ren
 $('#wNext').onclick=()=>{if(wi<WSL.length-1){wi++;renderWelcome()}else endWelcome()};$('#wPrev').onclick=()=>{if(wi>0){wi--;renderWelcome()}};$('#wSkip').onclick=endWelcome;
 $('#hWelcome').onclick=openWelcome;
 // --- legal ---
-const PRIV=[["Resumen", ["Resonar funciona sin cuentas. Tu voz se analiza en tu propio dispositivo y no se graba ni se envía a ningún servidor."]], ["Qué se guarda y dónde", ["Perfiles (nombre, avatar, tipo de voz y rango), progreso, ajustes y canciones guardadas se almacenan solo en el navegador de tu dispositivo (almacenamiento local). No los recibimos.", "Puedes descargarlos con «Exportar copia» y borrarlos desde Ajustes. Si borras los datos del navegador o desinstalas la app, se pierden."]], ["Micrófono y audios", ["El sonido del micrófono se analiza en tiempo real en tu dispositivo para medir afinación, vibrato y resonancia. No se graba ni se transmite.", "Los audios que eliges en «Califica tu voz» o «Canta conmigo» también se procesan en el dispositivo y no se suben. Las últimas canciones que cantas desde un archivo (hasta 6) se guardan en el navegador para que puedas volver a abrirlas desde «Tus canciones»."]], ["Lo único que sale de tu dispositivo", ["<b>Comentarios</b>: si usas «Danos tu opinión», enviamos tu texto, el email si decides ponerlo y, si lo marcas, datos técnicos (navegador, tamaño de pantalla, versión de la app).", "<b>Informes de errores</b>: si la app falla, se envía un aviso técnico automático (mensaje de error, navegador, versión y pantalla de la app). No incluye tu voz, tu nombre de perfil ni tu progreso.", "<b>Estadísticas sin cookies</b>: usamos Cloudflare Web Analytics, que cuenta visitas de forma agregada sin cookies ni identificarte.", "<b>YouTube</b>: en «Canta conmigo» se carga el reproductor de YouTube en modo de privacidad mejorada (youtube-nocookie.com) y nuestro servidor consulta el título del vídeo. Al reproducir un vídeo se aplica la política de privacidad de Google."]], ["Cuánto tiempo", ["Los comentarios se conservan un máximo de 12 meses y los informes de errores, 30 días. Después se borran automáticamente."]], ["Base y derechos", ["Tratamos los comentarios y los informes de errores por interés legítimo en mantener y mejorar la app. Puedes pedir el acceso o la supresión de un comentario que hayas enviado escribiendo al contacto de abajo, y reclamar ante la Agencia Española de Protección de Datos (aepd.es).", "Si tienes menos de 14 años, no pongas tu email en los comentarios."]], ["Cookies", ["Resonar no usa cookies propias ni de publicidad. El almacenamiento local solo guarda lo necesario para que la app funcione."]]],LEGAL=[["Titular", ["{OWNER}. Contacto: {CONTACT}."]], ["Uso", ["Resonar es gratuita y se ofrece tal cual, sin garantías. Puede cambiar o dejar de estar disponible."]], ["Salud", ["Resonar es una herramienta de práctica: no diagnostica ni sustituye a un profesor de canto, logopeda u otorrino. Si algo duele, para."]], ["Propiedad", ["El diseño, los textos y el código de Resonar son de su titular. Los vídeos de YouTube pertenecen a sus autores y se muestran con el reproductor oficial."]]];
+const PRIV=[["Resumen", ["Resonar funciona sin cuentas. Tu voz se analiza en tu propio dispositivo y no se graba ni se envía a ningún servidor."]], ["Qué se guarda y dónde", ["Perfiles (nombre, avatar, tipo de voz y rango), progreso, ajustes y canciones guardadas se almacenan solo en el navegador de tu dispositivo (almacenamiento local). No los recibimos.", "Puedes descargarlos con «Exportar copia» y borrarlos desde Ajustes. Si borras los datos del navegador o desinstalas la app, se pierden."]], ["Micrófono y audios", ["El sonido del micrófono se analiza en tiempo real en tu dispositivo para medir afinación, vibrato y resonancia. No se graba ni se transmite.", "Los audios que eliges en «Califica tu voz» o «Canta conmigo» también se procesan en el dispositivo y no se suben. Las últimas canciones que cantas desde un archivo (hasta 6) se guardan en el navegador para que puedas volver a abrirlas desde «Tus canciones». La separación de la voz con IA también se hace en tu dispositivo: solo se descarga el modelo, el audio no sale de él."]], ["Lo único que sale de tu dispositivo", ["<b>Comentarios</b>: si usas «Danos tu opinión», enviamos tu texto, el email si decides ponerlo y, si lo marcas, datos técnicos (navegador, tamaño de pantalla, versión de la app).", "<b>Informes de errores</b>: si la app falla, se envía un aviso técnico automático (mensaje de error, navegador, versión y pantalla de la app). No incluye tu voz, tu nombre de perfil ni tu progreso.", "<b>Estadísticas sin cookies</b>: usamos Cloudflare Web Analytics, que cuenta visitas de forma agregada sin cookies ni identificarte.", "<b>YouTube</b>: en «Canta conmigo» se carga el reproductor de YouTube en modo de privacidad mejorada (youtube-nocookie.com) y nuestro servidor consulta el título del vídeo. Al reproducir un vídeo se aplica la política de privacidad de Google."]], ["Cuánto tiempo", ["Los comentarios se conservan un máximo de 12 meses y los informes de errores, 30 días. Después se borran automáticamente."]], ["Base y derechos", ["Tratamos los comentarios y los informes de errores por interés legítimo en mantener y mejorar la app. Puedes pedir el acceso o la supresión de un comentario que hayas enviado escribiendo al contacto de abajo, y reclamar ante la Agencia Española de Protección de Datos (aepd.es).", "Si tienes menos de 14 años, no pongas tu email en los comentarios."]], ["Cookies", ["Resonar no usa cookies propias ni de publicidad. El almacenamiento local solo guarda lo necesario para que la app funcione."]]],LEGAL=[["Titular", ["{OWNER}. Contacto: {CONTACT}."]], ["Uso", ["Resonar es gratuita y se ofrece tal cual, sin garantías. Puede cambiar o dejar de estar disponible."]], ["Salud", ["Resonar es una herramienta de práctica: no diagnostica ni sustituye a un profesor de canto, logopeda u otorrino. Si algo duele, para."]], ["Propiedad", ["El diseño, los textos y el código de Resonar son de su titular. Los vídeos de YouTube pertenecen a sus autores y se muestran con el reproductor oficial."]]];
 function legalFill(x){const owner=CFG.owner||'El responsable de Resonar';const contact=CFG.email?`<a href="mailto:${CFG.email}" style="color:var(--vib)">${CFG.email}</a> o el formulario «Danos tu opinión»`:'el formulario «Danos tu opinión» de la app';return x.replace('{OWNER}',owner).replace('{CONTACT}',contact)}
 function openLegal(which){const L=which==='legal'?LEGAL:PRIV;$('#lgTitle').textContent=which==='legal'?'Aviso legal':'Privacidad';
   $('#lgBody').innerHTML=L.map(([h,ps])=>'<h3>'+h+'</h3>'+ps.map(q=>'<p>'+legalFill(q)+'</p>').join('')).join('')+(which==='priv'?'<h3>Contacto</h3><p>'+legalFill('{OWNER}: {CONTACT}.')+'</p>':'');

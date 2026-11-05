@@ -31,3 +31,11 @@
 /fonts/*
   ! Cache-Control
   Cache-Control: public, max-age=31536000, immutable
+
+/ai/ort/*
+  ! Cache-Control
+  Cache-Control: public, max-age=2592000
+
+/ai/*.onnx
+  ! Cache-Control
+  Cache-Control: public, max-age=2592000

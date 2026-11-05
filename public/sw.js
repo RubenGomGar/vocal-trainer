@@ -37,8 +37,8 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Todo lo demás de fuera (YouTube, analítica) y la API: sin tocar
-  if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
+  // Todo lo demás de fuera (YouTube, analítica), la API y la IA (/ai/, la guarda el propio worker): sin tocar
+  if (url.origin !== self.location.origin || url.pathname.startsWith('/api/') || url.pathname.startsWith('/ai/')) return;
 
   // Páginas (index.html): red primero para recibir actualizaciones; si no hay red, la copia guardada
   if (req.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('.html')) {

@@ -1,0 +1,11 @@
+Resonar · separación de voz en el dispositivo
+
+umxhq-vocals.f16w.onnx
+  Open-Unmix (umxhq, objetivo «vocals»), Stöter, Uhlich, Liutkus y Mitsufuji, JOSS 2019.
+  https://github.com/sigsep/open-unmix-pytorch · código y pesos con licencia MIT.
+  Exportado a ONNX con scripts/export-openunmix.py de @audio/neural-separate 0.7.0 (MIT)
+  en la rama tools/modelo-voz de este repositorio (workflow «Exportar modelo de voz»);
+  pesos guardados en float16 y convertidos a float32 al cargar (55 dB de SNR frente al original).
+
+ort/ (onnxruntime-web 1.23.2)
+  ONNX Runtime, © Microsoft Corporation · licencia MIT. https://github.com/microsoft/onnxruntime

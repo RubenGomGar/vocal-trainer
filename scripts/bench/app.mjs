@@ -16,7 +16,7 @@ const src = [
   grabLine('const median='), grabLine('const hz2m='), grabLine('const clamp='),
   'const prefs={stab:"medio"};',
   grabLine('const YB='), grabFunction('yin2'), grabLine('const STAB_WIN='), grabLine('const PV='), grabFunction('pvReset'), grabFunction('pvUpdate'),
-  grabFunction('melFFT'), grabFunction('extractMelodyLR'),
-  'return {median,hz2m,m2hz,yin2,PV,pvReset,pvUpdate,prefs,extractMelodyLR,STAB_WIN};'
+  grabFunction('melFFT'), grabFunction('extractMelodyLR'), grabFunction('aiGate'),
+  'return {median,hz2m,m2hz,yin2,PV,pvReset,pvUpdate,prefs,extractMelodyLR,aiGate,STAB_WIN};'
 ].join('\n');
 export const APP = new Function(src)();
