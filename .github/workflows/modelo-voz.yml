@@ -1,0 +1,34 @@
+name: Exportar modelo de voz
+
+# Rama de herramientas: exporta el modelo de separación de voz Open-Unmix (umxhq, pesos MIT) a ONNX
+# y lo guarda en esta misma rama (models/vocals.onnx).
+on:
+  push:
+    branches: [tools/modelo-voz]
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    if: ${{ !contains(github.event.head_commit.message, 'Modelo umxhq') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Exportar
+        run: |
+          python3 -m venv /tmp/v && . /tmp/v/bin/activate
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -q openunmix onnx onnxruntime onnxscript
+          npm pack @audio/neural-separate@0.7.0 --silent && tar xzf audio-neural-separate-*.tgz
+          python3 package/scripts/export-openunmix.py --model umxhq --targets vocals --out-dir models
+          python3 -c "import onnxruntime as o,numpy as n;s=o.InferenceSession('models/vocals.onnx');x=n.abs(n.random.randn(1,2,2049,50)).astype('f4');print('ok',s.run(None,{'magnitude':x})[0].shape)"
+          sha256sum models/vocals.onnx > models/SHA256SUMS
+          rm -rf package audio-neural-separate-*.tgz
+      - name: Guardar en la rama
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add models
+          git commit -m "Modelo umxhq vocals exportado (Open-Unmix, MIT)"
+          git push origin HEAD:tools/modelo-voz
