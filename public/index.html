@@ -975,7 +975,7 @@ $('#pfSave').onclick=()=>{const n=$('#pfName').value.trim();if(!n){$('#pfErr').s
   if(!newSex){$('#pfErr').style.display='block';$('#pfErr').textContent='Elige chico, chica o «prefiero no decirlo».';return}
   const p={id:'p'+Date.now().toString(36),name:n,av:newAv,sex:newSex,low:null,high:null};newSex=null;renderPfSex();profiles.push(p);saveProfiles();$('#pfName').value='';$('#pfNew').style.display='none';$('#pfErr').style.display='none';renderProfiles();selectProfile(p.id)};
 function selectProfile(id){prof=profiles.find(p=>p.id===id);LS.set('last',id);loadProg();
-  if(!AU.ready&&!isDemo()){openSetup();return}
+  if(!AU.ready&&!AU.granted&&!isDemo()){openSetup();return}
   if(prof.low==null){openRange();return}
   goHome()}
 
@@ -999,11 +999,10 @@ function voiceType(lo,hi){const mid=(lo+hi)/2;
 function barTranspose(){if(profSex()==='F')return 12;if(profSex()==='M'||!prof||prof.low==null)return 0;return (prof.low>=52&&prof.high>=74)?12:0}
 
 /* ================= audio ================= */
-const AU={ctx:null,master:null,an:null,tbuf:null,fbuf:null,mode:null,ready:false,stream:null,noise:.003,mh:[],ignoreUntil:0,sim:null,guide:null};
+const AU={granted:false,ctx:null,master:null,an:null,tbuf:null,fbuf:null,mode:null,ready:false,stream:null,noise:.003,mh:[],ignoreUntil:0,sim:null,guide:null};
 function isDemo(){return prefs.demo==='1'}
 async function ensureCtx(){
   if(!AU.ctx){const C=window.AudioContext||window.webkitAudioContext;if(!C)throw new Error('noaudio');
-    try{if(navigator.audioSession)navigator.audioSession.type='play-and-record'}catch(e){}
     AU.ctx=new C();const comp=AU.ctx.createDynamicsCompressor();AU.master=AU.ctx.createGain();AU.master.gain.value=prefs.vol;AU.master.connect(comp);comp.connect(AU.ctx.destination);
     AU.an=AU.ctx.createAnalyser();AU.an.fftSize=4096;AU.an.smoothingTimeConstant=.45;AU.tbuf=new Float32Array(4096);AU.fbuf=new Float32Array(2048);
     const sink=AU.ctx.createGain();sink.gain.value=0;AU.an.connect(sink);sink.connect(AU.ctx.destination);AU.sink=sink;await pwInit()}
@@ -1016,9 +1015,28 @@ async function startInput(){
   if(AU.mode==='mic'&&AU.stream)return;
   stopSim();
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){const e=new Error('nomedia');e.name='NoMedia';throw e}
-  const st=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:prefs.agc==='1',channelCount:1}});
-  AU.stream=st;const src=AU.ctx.createMediaStreamSource(st);src.connect(AU.an);if(PW.node)src.connect(PW.node);AU.src=src;AU.mode='mic';AU.ready=true;
+  try{if(navigator.audioSession)navigator.audioSession.type='play-and-record'}catch(e){}
+  let st;try{st=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:prefs.agc==='1',channelCount:1}})}
+  catch(e){try{if(navigator.audioSession)navigator.audioSession.type='auto'}catch(x){}throw e}
+  AU.stream=st;const src=AU.ctx.createMediaStreamSource(st);src.connect(AU.an);if(PW.node)src.connect(PW.node);AU.src=src;AU.mode='mic';AU.ready=true;AU.granted=true;
 }
+/* Al salir de la app (otra app, pantalla bloqueada, cerrar) se suelta el micrófono y el audio.
+   Si no, Android e iPhone dejan el sonido en «modo llamada» y Spotify y las demás apps suenan raro hasta que se reinician. */
+function releaseAudio(){
+  if(AU.stream){try{AU.stream.getTracks().forEach(t=>t.stop())}catch(e){}try{AU.src&&AU.src.disconnect()}catch(e){}AU.stream=null;AU.src=null;if(AU.mode==='mic'){AU.mode=null;AU.ready=false}}
+  try{if(navigator.audioSession)navigator.audioSession.type='auto'}catch(e){}
+  if(AU.ctx&&AU.ctx.state==='running'){try{AU.ctx.suspend()}catch(e){}}
+}
+function micActive(){return !!(raf||(game&&game.running)||(typeof SG!=='undefined'&&SG&&SG.on))}
+function onAppHidden(){
+  if(game&&game.running&&!game.paused)$('#gPause').click();
+  if(typeof SG!=='undefined'&&SG&&SG.on&&plPlaying()){plPause();setTimeout(sgUpdLiveBtns,150)}
+  releaseAudio()}
+async function onAppVisible(){if(!micActive())return;try{await startInput()}catch(e){toast('Toca la pantalla para volver a activar el micrófono.')}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')onAppHidden();else onAppVisible()});
+window.addEventListener('pagehide',onAppHidden);
+// iPhone/iPad: a veces el audio solo se reanuda con un toque
+document.addEventListener('pointerdown',()=>{if(document.visibilityState!=='visible'||!micActive())return;if((AU.ctx&&AU.ctx.state!=='running')||(!AU.stream&&!isDemo()))startInput().catch(()=>{})},{passive:true});
 function micErrorMsg(e){const inFrame=(()=>{try{return window.self!==window.top}catch(x){return true}})();const n=e&&e.name;
   if(n==='NoMedia'){if(inFrame)return'Estás dentro de la vista de Claude: aquí el micrófono está siempre bloqueado. Abre la app en su propio enlace <b>https</b> (mira «Cómo usarla de verdad») o usa el modo demo.';
     if(!window.isSecureContext)return'El micrófono necesita una dirección <b>https://</b>. Ábrela desde un alojamiento seguro.';
@@ -1479,7 +1497,7 @@ function goHome(){if(!prof){show('profiles');renderProfiles();return}renderInsta
   $('#hAv').textContent=prof.av;$('#hName').textContent=prof.name;$('#stStars').textContent=totalStars();$('#stStreak').textContent=streak();$('#stDone').textContent=Object.values(prog.stars).filter(x=>x>0).length;
   const dot=$('#hDot');
   if(isDemo()){dot.className='dot demo';$('#hMic').textContent='Modo demo: voz simulada';$('#hMicBtn').textContent='Usar micro'}
-  else if(AU.mode==='mic'){dot.className='dot on';$('#hMic').textContent='Micrófono listo';$('#hMicBtn').textContent='Probar'}
+  else if(AU.mode==='mic'||AU.granted){dot.className='dot on';$('#hMic').textContent='Micrófono listo';$('#hMicBtn').textContent='Probar'}
   else{dot.className='dot';$('#hMic').textContent='Micrófono sin configurar';$('#hMicBtn').textContent='Configurar'}
   const r=$('#hRange');if(prof.low!=null){const vs=vtSummary(prof.low,prof.high);r.innerHTML=`<div class="sp"><div class="mute small">Tu voz (orientativo)</div><b style="font-size:20px">${esc(vs.main.n)}</b>${vs.alt?' <span class="mute small">o '+esc(vs.alt.n)+'</span>':''}<div class="mute small">Rango cómodo ${nn(prof.low)} – ${nn(prof.high)}</div></div><button class="btn" id="hRg">Medir</button>`}
   else r.innerHTML=`<div class="sp"><b>Mide tu rango</b><div class="mute small">Los ejercicios se adaptan a tu voz</div></div><button class="btn pri" id="hRg">Medir</button>`;
