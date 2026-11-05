@@ -2333,7 +2333,7 @@ $('#fbSend').onclick=async()=>{const text=$('#fbText').value.trim(),mail=$('#fbM
 /* --- Premium: prueba de interés. Aún no se vende ni se cobra nada: solo medimos quién lo querría, en qué puerta y a qué precio.
    Identificador anónimo por dispositivo (rsn_uid). /api/ping una vez al día (usuarios activos); /api/interest al abrir y al responder. --- */
 const PM_FEAT={ai:'Canta conmigo sin límites: separación de voz con IA, MP3 y cambio de velocidad',rate:'Califica tu voz completo: informe detallado y evolución de tus notas',spec:'Módulos de especialización: mixta y belting, baritenor y voz alta'};
-const PM_PRICES=[299,499,999],PM_REASONS={caro:'Es caro',nouso:'No lo usaría',suscr:'Prefiero pagar al mes',otro:'Otro motivo'};
+const PM_PRICES=[999],PM_REASONS={caro:'Es caro',nouso:'No lo usaría',suscr:'Prefiero pagar al mes',otro:'Otro motivo'};
 const PM={door:'set',price:499};
 function rsnUid(){let u=LS.get('uid','');if(typeof u!=='string'||!/^[a-z0-9]{12}$/.test(u)){u=Array.from(crypto.getRandomValues(new Uint8Array(12)),b=>(b%36).toString(36)).join('');LS.set('uid',u)}return u}
 function pmPrice(){let v=LS.get('pmv',0);if(!PM_PRICES.includes(v)){v=PM_PRICES[crypto.getRandomValues(new Uint8Array(1))[0]%PM_PRICES.length];LS.set('pmv',v)}return v}

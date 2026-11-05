@@ -50,4 +50,4 @@ App web (un solo `index.html`) servida por el Cloudflare Worker **vocal**.
 - [ ] Privacidad y Aviso legal con tu nombre y contacto.
 
 ## Prueba de interés en Premium (aún no se vende)
-Botones 💎 en Canta conmigo, Califica tu voz, módulos de especialización y Ajustes. Cada dispositivo ve al azar un precio de pago único (2,99 / 4,99 / 9,99 €, `rsn_pmv`). Se guarda en KV `int:<uid>:<puerta>` (12 meses) la respuesta (vista / lo quiero / ahora no + motivo) y el email solo con casilla de consentimiento. `act:<día>:<uid>` (60 días, una vez al día, sin modo demo) cuenta usuarios activos. Resumen en `/api/admin?kind=int` (o `&format=json`).
+Botones 💎 en Canta conmigo, Califica tu voz, módulos de especialización y Ajustes. Precio fijo de pago único 9,99 € (`rsn_pmv`; del 05/11 a las 23:00 se probaron al azar 2,99 / 4,99 / 9,99 €). Se guarda en KV `int:<uid>:<puerta>` (12 meses) la respuesta (vista / lo quiero / ahora no + motivo) y el email solo con casilla de consentimiento. `act:<día>:<uid>` (60 días, una vez al día, sin modo demo) cuenta usuarios activos. Resumen en `/api/admin?kind=int` (o `&format=json`).
