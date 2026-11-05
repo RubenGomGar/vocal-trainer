@@ -560,6 +560,7 @@ input.fbm{width:100%;font:inherit;font-size:16px;padding:12px 14px;border-radius
   <div class="opt"><div>Volumen automático del micro<div class="small mute">Déjalo en No salvo que el micro te oiga muy bajo</div></div><div class="seg" data-pref="agc"><button data-v="0">No</button><button data-v="1">Sí</button></div></div>
   <div class="opt"><div>Motor de análisis<div class="small mute">«Nuevo» analiza 100 veces por segundo en el hilo de audio</div></div><div class="seg" data-pref="engine"><button data-v="nuevo">Nuevo</button><button data-v="old">Anterior</button></div></div>
   <div class="opt"><div>Antes de cada repetición<div class="small mute">Con «Inicio»: escuchar toda la frase o solo la primera nota</div></div><div class="seg" data-pref="pre"><button data-v="frase">Frase + nota</button><button data-v="nota">Solo la nota</button></div></div>
+  <div class="opt"><div>Consejos al calificar<div class="small mute">«Tu análisis» en Califica tu voz: qué mejorar y qué ejercicio hacer</div></div><div class="seg" data-pref="coach"><button data-v="1">Sí</button><button data-v="0">No</button></div></div>
   <div class="opt"><div>Metrónomo<div class="small mute">En los ejercicios con pulso</div></div><div class="seg" data-pref="metro"><button data-v="1">Sí</button><button data-v="0">No</button></div></div>
   <div class="opt"><div>Volumen<div class="small mute">En iPhone, quita el modo silencio</div></div><input type="range" min="0" max="1" step="0.05" id="setVol"></div>
   <div class="opt"><div>Modo demo<div class="small mute">Voz simulada: para probar la app sin micrófono</div></div><div class="seg" data-pref="demo"><button data-v="1">Sí</button><button data-v="0">No</button></div></div>
@@ -625,7 +626,7 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 let toastT;function toast(m,ms=2600){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),ms)}
 const SOL=['Do','Do#','Re','Re#','Mi','Fa','Fa#','Sol','Sol#','La','La#','Si'],AM=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const hz2m=f=>69+12*Math.log2(f/440), m2hz=m=>440*Math.pow(2,(m-69)/12);
-let prefs=Object.assign({tol:50,names:'sol',guide:'inicio',metro:'1',vol:.7,demo:'0',unlock:'0',speed:'lenta',sovt:'labios',pre:'frase',stab:'medio',agc:'0',engine:'nuevo'},LS.get('prefs',{}));
+let prefs=Object.assign({tol:50,names:'sol',guide:'inicio',metro:'1',vol:.7,demo:'0',unlock:'0',speed:'lenta',sovt:'labios',pre:'frase',stab:'medio',agc:'0',engine:'nuevo',coach:'1'},LS.get('prefs',{}));
 const SPEEDS={muy:2.5,lenta:1.8,media:1.35,normal:1};
 function savePrefs(){LS.set('prefs',prefs)}
 function nn(m){if(m==null)return'—';m=Math.round(m);return(prefs.names==='am'?AM:SOL)[(m%12+12)%12]+(Math.floor(m/12)-1)}
@@ -1731,13 +1732,57 @@ function rateTake(fr){
   mods.push(bar);
   mods.forEach(m=>{m.score=m.comps.length?10*(m.comps.reduce((a,c)=>a+c.w*c.x,0)+(m.extra||0)):null});
   const ev=mods.filter(m=>m.score!=null);const global=mean(ev.map(m=>m.score));
-  return{global,mods,voicedT,notes:notes.length,noteList:notes}}
+  return{global,mods,voicedT,notes:notes.length,noteList:notes,cracks:bar.comps.length?+((bar.comps[2].v.match(/\d+/)||[0])[0]):null}}
+/* --- análisis en texto: una fortaleza, lo más importante a mejorar y el siguiente paso --- */
+function coachReport(res,prev){if(!res||res.err)return null;
+  const N=res.noteList||[],M=k=>res.mods.find(m=>m.id===k),F=[],sgn=v=>(v>0?'+':'−')+Math.abs(Math.round(v))+' c';
+  const wsd=a=>a.reduce((s,n)=>s+n.dev*n.dur,0)/a.reduce((s,n)=>s+n.dur,0);
+  // 1. agudo desafinado hacia abajo/arriba (respecto a tu propia referencia)
+  if(N.length>=6){const qs=N.map(n=>n.q).sort((a,b)=>a-b),span=qs[qs.length-1]-qs[0];
+    if(span>=5){const cut=qs[Math.floor(qs.length*2/3)],hi=N.filter(n=>n.q>=cut&&n.q>qs[0]+2);
+      if(hi.length>=3){const d=wsd(hi);
+        if(d<=-15)F.push({k:'hiflat',sev:lin(-d,15,40)*.9+.1,t:'En las notas agudas (de '+nn(cut)+' para arriba) te quedas por debajo: '+sgn(d)+' de media en '+hi.length+' notas.',why:'Suele ser falta de apoyo o de espacio al subir: el aire se queda corto justo donde más hace falta.',rec:'T4'});
+        else if(d>=15)F.push({k:'hisharp',sev:lin(d,15,40)*.9+.1,t:'En las notas agudas (de '+nn(cut)+' para arriba) te pasas por arriba: '+sgn(d)+' de media en '+hi.length+' notas.',why:'Pasa al empujar o apretar para llegar. Sube con menos peso y deja que el agudo se aligere.',rec:'G2'})}}}
+  // 2. deriva al final de las notas largas
+  const L=N.filter(n=>n.dur>=.8&&n.fr.length>=12);
+  if(L.length>=2){const dr=L.map(n=>{const k=n.fr.length;return(median(n.fr.slice(Math.floor(2*k/3)).map(f=>f.m))-median(n.fr.slice(0,Math.floor(k/3)).map(f=>f.m)))*100}),d=mean(dr),cnt=dr.filter(x=>Math.sign(x)===Math.sign(d)&&Math.abs(x)>=12).length;
+    if(Math.abs(d)>=15&&cnt>=Math.max(2,L.length/2))F.push({k:d<0?'driftdn':'driftup',sev:lin(Math.abs(d),15,45)*.9+.1,
+      t:d<0?'Al final de las notas largas bajas unos '+Math.round(-d)+' c ('+cnt+' de '+L.length+' notas).':'Al final de las notas largas subes unos '+Math.round(d)+' c ('+cnt+' de '+L.length+' notas).',
+      why:d<0?'Se acaba el aire o se relaja el apoyo antes de terminar la nota. Respira antes y gasta el aire más despacio.':'Suele ser tensión que va creciendo durante la nota. Suelta mandíbula y cuello mientras sostienes.',rec:d<0?'R1':'T3'})}
+  // 3. saltos entre notas (subiendo o bajando)
+  const up=[],dn=[];for(let i=1;i<N.length;i++){const a=N[i-1],b=N[i];if(b.t0-a.t1>=1)continue;const d=b.center-a.center,r=Math.round(d);if(r===0)continue;(r>0?up:dn).push(Math.abs(d-r)*100)}
+  const mu=up.length>=3?mean(up):0,mdn=dn.length>=3?mean(dn):0,mi=Math.max(mu,mdn);
+  if(mi>=28)F.push({k:'iv',sev:lin(mi,28,50)*.8+.1,t:'Los saltos '+(mu>=mdn?'hacia arriba':'hacia abajo')+' quedan abiertos: '+Math.round(mi)+' c de error medio.',why:'Antes de cantar cada salto, oye la nota de llegada por dentro. Despacio primero, luego a tempo.',rec:mu>=mdn?'T4':'T5'});
+  // 4. afinación general (si no hay nada más concreto)
+  const afi=M('afi');if(afi&&afi.score!=null&&afi.score<5&&!F.some(f=>['hiflat','hisharp','iv'].includes(f.k)))F.push({k:'afi',sev:.75,t:'Muchas notas quedan entre medias de dos semitonos.',why:'Trabaja escalas lentas, escuchando la nota guía antes de cantar.',rec:'T2'});
+  // 5. registros: roturas en el agudo
+  const bar=M('bar');if(res.cracks>=2&&bar)F.push({k:'crack',sev:lin(res.cracks,2,6)*.8+.2,t:'He notado '+res.cracks+' saltos bruscos al subir (posibles quiebros entre registros).',why:'El paso de pecho a cabeza aún no está conectado. Sirenas suaves y mix ligero ayudan a unirlo.',rec:bar.rec});
+  // 6. brillo
+  const arm=M('arm');if(arm&&arm.score!=null&&arm.score<5)F.push({k:'ring',sev:lin(5-arm.score,0,4)*.6+.15,t:'La voz suena algo apagada: poca energía en 2–4 kHz.',why:'Te falta el «anillo» que hace que la voz llegue sin gritar. El twang lo da sin más volumen.',rec:arm.rec});
+  // 7. vibrato (si hay y no es sano)
+  const vib=M('vib');if(vib&&vib.score!=null&&vib.comps.length&&vib.comps[0].x>0&&vib.score<6)F.push({k:'vib',sev:lin(6-vib.score,0,4)*.5+.1,t:vib.text,why:'El vibrato aparece solo cuando el aire y la garganta están equilibrados: no se fuerza.',rec:vib.rec});
+  F.sort((a,b)=>b.sev-a.sev);const main=F.find(f=>f.sev>=.3)||null,more=F.filter(f=>f!==main&&f.sev>=.2).slice(0,3);
+  // fortaleza: el mejor apartado con nota
+  const ev=res.mods.filter(m=>m.score!=null).sort((a,b)=>b.score-a.score);let good=null;
+  if(ev.length&&ev[0].score>=6.5){const m=ev[0];good={t:m.name+' ('+fmt(m.score)+'): '+(m.text||'').split(/(?<=\.)\s/)[0],ic:m.ic}}
+  const short=res.voicedT<15||res.notes<8;const delta=prev&&prev.g!=null?res.global-prev.g:null;
+  const bm=M('bar'),hint=bm&&bm.score==null?'Para afinar el análisis, canta algo que llegue a '+bm.zone.split('–')[0]+' o más arriba.':!N.some(n=>n.dur>=1)?'Para afinar el análisis, incluye alguna nota larga (1 s o más).':'Sigue así.';
+  return{good,main,more,short,delta,hint}}
+function coachHTML(c){if(!c)return'';const btn=r=>r&&EX[r]?`<button class="btn" data-rec="${r}" style="margin-top:8px">${r} · ${esc(fillT(EX[r].name))} ›</button>`:'';
+  return`<div class="card coach"><b style="font-size:18px">🧭 Tu análisis</b>${c.short?'<div class="small mute">Toma corta: tómalo como orientativo.</div>':''}
+   ${c.delta!=null&&Math.abs(c.delta)>=.3?`<p class="small" style="margin:8px 0 0">${c.delta>0?'📈 Has subido':'📉 Has bajado'} <b>${fmt(Math.abs(c.delta))}</b> desde la última toma.</p>`:''}
+   ${c.good?`<p style="margin:10px 0 0"><b>👍 Lo mejor</b><br><span class="small">${esc(c.good.t)}</span></p>`:''}
+   ${c.main?`<p style="margin:10px 0 0"><b>🎯 A trabajar</b><br><span class="small">${esc(c.main.t)}</span><br><span class="small mute">${esc(c.main.why)}</span></p>
+     <div style="margin-top:4px"><div class="small"><b>▶ Siguiente paso:</b> 5 minutos de este ejercicio y vuelve a grabar.</div>${btn(c.main.rec)}</div>`
+     :`<p class="small" style="margin:10px 0 0">No veo nada claro que corregir en esta toma. ${esc(c.hint)}</p>`}
+   ${c.more.length?`<details class="det"><summary>Ver más (${c.more.length})</summary>${c.more.map(f=>`<p class="small" style="margin:8px 0 0">${esc(f.t)}<br><span class="mute">${esc(f.why)}</span></p>${btn(f.rec)}`).join('')}</details>`:''}</div>`}
 function gcol(s){return s>=7.5?'var(--ok)':s>=5?'var(--warn)':'var(--bad)'}
 let raNotes=[],raHi=-1;
 function showRating(res){const el=$('#raRes');raNotes=[];raHi=-1;if(res.err){el.innerHTML=`<div class="err">${esc(res.err)}</div>`;return}
   raNotes=res.noteList;
   const devCol=d=>{const a=Math.abs(d);return a<=15?'var(--ok)':a<=30?'var(--warn)':'var(--bad)'};
   el.innerHTML=`<div class="card center"><div class="mute small">Nota global</div><div style="font-size:60px;font-weight:700;color:${gcol(res.global)}">${fmt(res.global)}</div><div class="mute small">sobre 10 · ${Math.round(res.voicedT)} s de canto · ${res.notes} notas${AU.mode==='sim'&&!res.file?' · voz simulada (demo)':''}</div></div>`+
+  (prefs.coach!=='0'?coachHTML(coachReport(res,(prog.rates||[])[0])):'')+
   res.mods.map(m=>`<div class="card"><div class="row"><span style="font-size:26px">${m.ic}</span><div class="sp"><b style="font-size:18px">${m.name}</b>${m.zone?`<div class="small mute">zona ${m.zone}</div>`:''}</div><b style="font-size:26px;color:${m.score==null?'var(--mute)':gcol(m.score)}">${m.score==null?'—':fmt(m.score)}</b></div>
    <div class="gbar"><i style="width:${m.score==null?0:m.score*10}%;background:${m.col}"></i></div>
    <p class="small" style="margin:8px 0">${esc(m.text||'')}${m.note?` <span class="mute">${esc(m.note)}</span>`:''}</p>
@@ -2413,7 +2458,7 @@ window.addEventListener('resize',()=>{if(game&&!game.running&&$('#s-result').cla
 (function init(){bkInfo();if(!LS.get('onb',0)){if(isDemo()){ensureCtx().then(()=>{startSim();AU.mode='sim';AU.ready=true}).catch(()=>{})}const pl=profiles.find(x=>x.id===LS.get('last',null));if(pl){prof=pl;loadProg()}openWelcome();return}const last=LS.get('last',null);if(isDemo()){AU.ready=false}
   const p=profiles.find(x=>x.id===last);if(p){prof=p;loadProg();if(isDemo()){ensureCtx().then(()=>{startSim();AU.mode='sim';AU.ready=true}).catch(()=>{})}goHome()}else{show('profiles');renderProfiles()}})();
 // pruebas
-window.__R={yin2,pvUpdate,pvReset,PV,SG,sgEval,extractMelody,sgExampleFile,parseYT,keyOf,yin,vibStats,analyze,EX,MODULES,buildTL,AU,scoreAll,nn,rateTake,analyzeBuffer,specDB};
+window.__R={yin2,pvUpdate,pvReset,PV,SG,sgEval,extractMelody,sgExampleFile,parseYT,keyOf,yin,vibStats,analyze,EX,MODULES,buildTL,AU,scoreAll,nn,rateTake,coachReport,analyzeBuffer,specDB};
 </script>
 </body>
 </html>
