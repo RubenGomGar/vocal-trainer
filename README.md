@@ -9,7 +9,7 @@ App web (un solo `index.html`) servida por el Cloudflare Worker **vocal**.
 
 ## Estructura
 - `public/` — la app: `index.html`, `sw.js`, `manifest.webmanifest`, `privacidad.html`, iconos, `og-image.jpg`, `_headers`.
-- `src/index.js` — Worker: `/api/yt`, `/api/feedback`, `/api/log`, `/api/admin`.
+- `src/index.js` — Worker: `/api/yt`, `/api/feedback`, `/api/log`, `/api/ping`, `/api/interest`, `/api/admin`.
 - `scripts/build.mjs` — genera `dist/` con versión automática, URL y datos legales de `site.config.json`.
 - `scripts/check.mjs` — comprueba que el JS compila, que no hay CSP y que está `#boot`.
 
@@ -44,6 +44,10 @@ App web (un solo `index.html`) servida por el Cloudflare Worker **vocal**.
 - [ ] iPad horizontal: «Canta conmigo» a dos columnas con un vídeo de YouTube.
 - [ ] Exportar copia en un móvil e importarla en otro.
 - [ ] Enviar un comentario y verlo en `/api/admin`.
+- [ ] Abrir «💎 Premium», pulsar «Lo quiero» y verlo en `/api/admin` → «Interés Premium».
 - [ ] Pegar el enlace en WhatsApp: sale imagen, título y descripción.
 - [ ] Publicar una versión nueva y comprobar que el móvil la coge al reabrir (Ajustes → número de versión en el pie de inicio).
 - [ ] Privacidad y Aviso legal con tu nombre y contacto.
+
+## Prueba de interés en Premium (aún no se vende)
+Botones 💎 en Canta conmigo, Califica tu voz, módulos de especialización y Ajustes. Cada dispositivo ve al azar un precio de pago único (2,99 / 4,99 / 9,99 €, `rsn_pmv`). Se guarda en KV `int:<uid>:<puerta>` (12 meses) la respuesta (vista / lo quiero / ahora no + motivo) y el email solo con casilla de consentimiento. `act:<día>:<uid>` (60 días, una vez al día, sin modo demo) cuenta usuarios activos. Resumen en `/api/admin?kind=int` (o `&format=json`).

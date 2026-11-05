@@ -141,6 +141,8 @@ input[type=range]{width:140px;accent-color:var(--vib)}
 .metric b{display:block;font-size:20px}
 .metric span{font-size:12px;color:var(--mute)}
 #rcv{height:160px}
+.pmb{font-size:14px;padding:8px 12px;margin-top:10px;border-color:color-mix(in srgb,var(--vib) 55%,var(--line))}
+.pmf{line-height:1.6;padding-left:20px;margin:10px 0}.pmf li.hl{font-weight:700;color:var(--vib)}
 .tip{background:color-mix(in srgb,var(--vib) 16%,var(--card));border-radius:14px;padding:12px 14px;margin:8px 0;line-height:1.4}
 .tip.warn{background:color-mix(in srgb,var(--bad) 18%,var(--card))}
 /* setup micro */
@@ -419,6 +421,7 @@ input.fbm{width:100%;font:inherit;font-size:16px;padding:12px 14px;border-radius
             <p class="small mute" style="margin:8px 0 10px">Elige una canción guardada en tu móvil o tablet (mp3, m4a, wav…). Se queda en tu dispositivo: no se sube a ningún sitio. Saco la melodía de la voz del propio audio.</p>
             <div class="row" style="flex-wrap:wrap;gap:8px"><label class="btn pri" for="sgSong" id="sgSongBtn">🎵 Elegir MP3</label><input type="file" id="sgSong" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.flac" style="display:none"><button class="btn ghost" id="sgEx">🎹 Canción de ejemplo</button><button class="btn ghost" id="sgNoSong" style="display:none">Quitar</button></div>
             <label class="row small sgai" style="gap:8px;margin-top:10px;cursor:pointer"><input type="checkbox" class="sgAiChk"> <span>🤖 Separar la voz con IA (más precisa; la primera vez descarga unos 25 MB)</span></label>
+          <button class="btn ghost pmb" data-pm="ai">💎 Premium · ¿te interesa?</button>
             <div id="sgSongSt" class="small" style="margin-top:8px"></div>
           </div>
         </div>
@@ -427,6 +430,7 @@ input.fbm{width:100%;font:inherit;font-size:16px;padding:12px 14px;border-radius
           <p class="small mute" style="margin:6px 0 10px">Sube el audio de la misma canción (mp3, m4a…) y te diré si cantas las notas correctas. Mejor si la voz se oye clara. Sin audio, analizo solo tu afinación.</p>
           <div class="row" style="flex-wrap:wrap"><label class="btn" for="sgFile">🎵 Añadir audio</label><input type="file" id="sgFile" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.flac" style="display:none"><button class="btn ghost" id="sgNoRef" style="display:none">Quitar</button></div>
           <label class="row small sgai" style="gap:8px;margin-top:10px;cursor:pointer"><input type="checkbox" class="sgAiChk"> <span>🤖 Separar la voz con IA (más precisa; la primera vez descarga unos 25 MB)</span></label>
+          <button class="btn ghost pmb" data-pm="ai">💎 Premium · ¿te interesa?</button>
           <div id="sgRefSt" class="small" style="margin-top:8px"></div>
         </div>
         <div class="card">
@@ -565,6 +569,7 @@ input.fbm{width:100%;font:inherit;font-size:16px;padding:12px 14px;border-radius
   <div class="opt"><div>Copia de seguridad<div class="small mute" id="bkInfo">Tu progreso solo vive en este dispositivo</div></div><div class="row" style="gap:6px"><button class="btn" id="bkExp">Exportar</button><button class="btn" id="bkImp">Importar</button></div></div>
   <input type="file" id="bkFile" accept="application/json,.json" style="display:none">
   <div class="opt"><div>Instalar en el móvil<div class="small mute" id="setInstTxt">Ábrela como una app y no se borra tu progreso</div></div><button class="btn" id="setInst">Cómo</button></div>
+  <div class="opt"><div>💎 Resonar Premium<div class="small mute">Estamos pensándolo: dinos si te interesa</div></div><button class="btn" data-pm="set">Ver</button></div>
   <div class="opt"><div>Comentarios y fallos</div><button class="btn" id="setFb">Escribir</button></div>
   <div class="opt"><div>Privacidad y aviso legal</div><button class="btn" data-legal="priv">Ver</button></div>
   <div class="opt"><div>Progreso de este perfil</div><button class="btn" id="setReset">Borrar</button></div>
@@ -591,6 +596,11 @@ input.fbm{width:100%;font:inherit;font-size:16px;padding:12px 14px;border-radius
 <div class="sheet-bg" id="sh-inst"><div class="sheet">
   <div class="row"><h1 style="margin:0">📲 Instalar Resonar</h1><span class="sp"></span><button class="icon" data-close>✕</button></div>
   <div id="instBody"></div>
+</div></div>
+
+<div class="sheet-bg" id="sh-pm"><div class="sheet">
+  <div class="row"><h1 style="margin:0">💎 Resonar Premium</h1><span class="sp"></span><button class="icon" data-close>✕</button></div>
+  <div id="pmBody"></div>
 </div></div>
 
 <div class="sheet-bg" id="sh-ask"><div class="sheet center">
@@ -1479,11 +1489,11 @@ function goHome(){if(!prof){show('profiles');renderProfiles();return}renderInsta
   $$('#hSexAsk button').forEach(b=>b.onclick=()=>{prof.sex=b.dataset.v;saveProfiles();goHome()});
   const dm=Math.round(doseDay(today())/60),wm=Math.round(doseWeek()/60);$('#hDose').innerHTML=`Hoy: <b>${dm} min</b> de canto · semana: ${wm} min${dm>=60?' · <span style="color:var(--warn)">descansa</span>':''}`;
   const H=$('#hMods');H.innerHTML='';let lastStage=0;
-  visibleMods().forEach(md=>{if(md.stage!==lastStage){lastStage=md.stage;const h=document.createElement('h2');h.textContent=lastStage+' · '+STAGES[lastStage];H.appendChild(h)}const tot=md.ex.length*3,got=md.ex.reduce((a,e)=>a+(prog.stars[e.id]||0),0),p=Math.round(got/tot*100);
+  visibleMods().forEach(md=>{if(md.stage!==lastStage){lastStage=md.stage;const h=document.createElement('h2');h.textContent=lastStage+' · '+STAGES[lastStage];H.appendChild(h);if(lastStage===3){const pb=document.createElement('button');pb.className='btn ghost pmb';pb.dataset.pm='spec';pb.style.margin='0 0 10px';pb.textContent='💎 Especialización con Premium · ¿te interesa?';pb.onclick=()=>openPm('spec');H.appendChild(pb)}}const tot=md.ex.length*3,got=md.ex.reduce((a,e)=>a+(prog.stars[e.id]||0),0),p=Math.round(got/tot*100);
     const b=document.createElement('button');b.className='mod';b.style.setProperty('--c',md.col);
     b.innerHTML=`<div class="mi">${md.ic}</div><div class="sp"><b>${md.name}</b><div class="mute small">${md.ex.length} ejercicios · ${got}/${tot}&nbsp;★${(()=>{const k={vib:'v',arm:'r',bar:'b',mix:'b',afi:'a'}[md.id];return lr&&k&&lr[k]!=null?' · nota '+fmt(lr[k]):''})()}</div></div><div class="ring" style="--p:${p}"><i>${p}%</i></div>`;
     b.onclick=()=>openModule(md.id);H.appendChild(b)});
-  show('home')}
+  show('home');pmPing()}
 function lvUnlocked(md,lv){if(prefs.unlock==='1'||lv===1)return true;const prev=md.ex.filter(e=>e.lv===lv-1);const done=prev.filter(e=>(prog.stars[e.id]||0)>=1).length;return done>=Math.ceil(prev.length*.6)}
 function isUnlocked(e){return lvUnlocked(MODULES.find(m=>m.id===e.mod),e.lv)}
 function openModule(id){stopLoops();const md=MODULES.find(m=>m.id===id);$('#mTitle').textContent=md.ic+' '+md.name;$('#mDesc').textContent=modDesc(md);
@@ -1718,7 +1728,9 @@ function showRating(res){const el=$('#raRes');raNotes=[];raHi=-1;if(res.err){el.
    ${m.rec&&EX[m.rec]?`<button class="btn" data-rec="${m.rec}" style="margin-top:8px">Entrenar: ${m.rec} · ${esc(fillT(EX[m.rec].name))} ›</button>`:''}</div>`).join('')+
   `<div class="card"><b>🎼 Tus notas, una a una</b><div class="small mute" style="margin:4px 0 8px">Toca una fila para verla en la gráfica (o toca la gráfica). Desviación: verde ≤ 15 c, amarillo ≤ 30 c, rojo &gt; 30 c.</div>
    <div style="overflow-x:auto"><table class="tbl" id="raNoteTbl"><tr><th>#</th><th>Nota</th><th>Inicio</th><th>Dur.</th><th>Desv.</th><th>Vibrato</th><th>Anillo</th></tr>${raNotes.map((n,i)=>`<tr data-i="${i}"><td>${i+1}</td><td><b>${nn(n.q)}</b></td><td>${fmt(n.t0)} s</td><td>${fmt(n.dur)} s</td><td style="color:${devCol(n.dev)}"><b>${n.dev>0?'+':''}${Math.round(n.dev)} c</b></td><td>${n.vs?(n.vs.present?fmt(n.vs.rate)+' Hz · '+Math.round(n.vs.ext)+' c':'recto'):'<span class="mute">—</span>'}</td><td>${n.ring==null?'—':fmt(n.ring,0)+' dB'}</td></tr>`).join('')}</table></div></div>`+
+  `<div class="card"><b>💎 Informe completo y tu evolución</b><div class="small mute" style="margin:4px 0 0">Estamos pensando en una versión Premium con el informe detallado y la evolución de tus notas en el tiempo.</div><button class="btn ghost pmb" data-pm="rate">¿Te interesa?</button></div>`+
   `<p class="small mute">Nota orientativa: depende del micrófono, la sala y lo que cantes. Compara tus notas grabando siempre en las mismas condiciones.</p>`;
+  bindPm(el);
   el.querySelectorAll('[data-rec]').forEach(b=>b.onclick=()=>{const e=EX[b.dataset.rec];if(!e)return;const md=MODULES.find(m=>m.id===e.mod);if(md.sex&&profSex()!=='X'&&md.sex!==profSex()){toast('Ese ejercicio es de otro tipo de voz.');return}if(!isUnlocked(e)){toast('Ese ejercicio está en un nivel bloqueado. Puedes desbloquearlo en Ajustes.');openModule(e.mod);return}openModule(e.mod);openIntro(e.id)});
   el.querySelectorAll('#raNoteTbl tr[data-i]').forEach(tr=>tr.onclick=()=>{raHi=+tr.dataset.i;hiNoteRow();drawRate();$('#racv').scrollIntoView({behavior:'smooth',block:'center'})});
   drawRate();
@@ -2266,7 +2278,7 @@ $('#bkExp').onclick=async()=>{let data;try{data=collectData()}catch(e){toast('No
   try{const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);LS.set('lastBackup',Date.now());bkInfo();toast('Copia descargada: '+name)}catch(e){toast('Este navegador no permite descargar archivos aquí.')}};
 $('#bkImp').onclick=()=>{$('#bkFile').value='';$('#bkFile').click()};
 // Seguridad: solo se restauran claves conocidas, con JSON válido y sin «<» ni «>» en ningún texto (una copia manipulada no puede meter código)
-const BK_KEYS=/^rsn_(prefs|profiles|last|onb|lastBackup|instHide|installed|prog_[\w-]{1,40}|sg_songs_[\w-]{1,40}|sg_mel_[\w-]{11})$/;
+const BK_KEYS=/^rsn_(prefs|profiles|last|onb|lastBackup|instHide|installed|uid|pmv|pmAns|prog_[\w-]{1,40}|sg_songs_[\w-]{1,40}|sg_mel_[\w-]{11})$/;
 function bkClean(v,depth=0){if(depth>8)return null;if(typeof v==='string')return v.slice(0,200000).replace(/[<>]/g,c=>c==='<'?'‹':'›');if(typeof v==='number')return isFinite(v)?v:0;if(typeof v==='boolean'||v==null)return v;
   if(Array.isArray(v))return v.slice(0,2000).map(x=>bkClean(x,depth+1));if(typeof v==='object'){const o={};for(const [k,x] of Object.entries(v).slice(0,2000)){if(k==='__proto__'||k==='constructor'||k==='prototype')continue;o[k.replace(/[<>]/g,'')]=bkClean(x,depth+1)}return o}return null}
 function bkSanitize(data){const out={};let bad=0;for(const [k,v] of Object.entries(data||{})){if(!BK_KEYS.test(k)||typeof v!=='string'){bad++;continue}let j;try{j=JSON.parse(v)}catch(e){bad++;continue}
@@ -2295,7 +2307,7 @@ function endWelcome(){LS.set('onb',1);if(prof)goHome();else{show('profiles');ren
 $('#wNext').onclick=()=>{if(wi<WSL.length-1){wi++;renderWelcome()}else endWelcome()};$('#wPrev').onclick=()=>{if(wi>0){wi--;renderWelcome()}};$('#wSkip').onclick=endWelcome;
 $('#hWelcome').onclick=openWelcome;
 // --- legal ---
-const PRIV=[["Resumen", ["Resonar funciona sin cuentas. Tu voz se analiza en tu propio dispositivo y no se graba ni se envía a ningún servidor."]], ["Qué se guarda y dónde", ["Perfiles (nombre, avatar, tipo de voz y rango), progreso, ajustes y canciones guardadas se almacenan solo en el navegador de tu dispositivo (almacenamiento local). No los recibimos.", "Puedes descargarlos con «Exportar copia» y borrarlos desde Ajustes. Si borras los datos del navegador o desinstalas la app, se pierden."]], ["Micrófono y audios", ["El sonido del micrófono se analiza en tiempo real en tu dispositivo para medir afinación, vibrato y resonancia. No se graba ni se transmite.", "Los audios que eliges en «Califica tu voz» o «Canta conmigo» también se procesan en el dispositivo y no se suben. Las últimas canciones que cantas desde un archivo (hasta 6) se guardan en el navegador para que puedas volver a abrirlas desde «Tus canciones». La separación de la voz con IA también se hace en tu dispositivo: solo se descarga el modelo, el audio no sale de él."]], ["Lo único que sale de tu dispositivo", ["<b>Comentarios</b>: si usas «Danos tu opinión», enviamos tu texto, el email si decides ponerlo y, si lo marcas, datos técnicos (navegador, tamaño de pantalla, versión de la app).", "<b>Informes de errores</b>: si la app falla, se envía un aviso técnico automático (mensaje de error, navegador, versión y pantalla de la app). No incluye tu voz, tu nombre de perfil ni tu progreso.", "<b>Estadísticas sin cookies</b>: usamos Cloudflare Web Analytics, que cuenta visitas de forma agregada sin cookies ni identificarte.", "<b>YouTube</b>: en «Canta conmigo» se carga el reproductor de YouTube en modo de privacidad mejorada (youtube-nocookie.com) y nuestro servidor consulta el título del vídeo. Al reproducir un vídeo se aplica la política de privacidad de Google."]], ["Cuánto tiempo", ["Los comentarios se conservan un máximo de 12 meses y los informes de errores, 30 días. Después se borran automáticamente."]], ["Base y derechos", ["Tratamos los comentarios y los informes de errores por interés legítimo en mantener y mejorar la app. Puedes pedir el acceso o la supresión de un comentario que hayas enviado escribiendo al contacto de abajo, y reclamar ante la Agencia Española de Protección de Datos (aepd.es).", "Si tienes menos de 14 años, no pongas tu email en los comentarios."]], ["Cookies", ["Resonar no usa cookies propias ni de publicidad. El almacenamiento local solo guarda lo necesario para que la app funcione."]]],LEGAL=[["Titular", ["{OWNER}. Contacto: {CONTACT}."]], ["Uso", ["Resonar es gratuita y se ofrece tal cual, sin garantías. Puede cambiar o dejar de estar disponible."]], ["Salud", ["Resonar es una herramienta de práctica: no diagnostica ni sustituye a un profesor de canto, logopeda u otorrino. Si algo duele, para."]], ["Propiedad", ["El diseño, los textos y el código de Resonar son de su titular. Los vídeos de YouTube pertenecen a sus autores y se muestran con el reproductor oficial."]]];
+const PRIV=[["Resumen", ["Resonar funciona sin cuentas. Tu voz se analiza en tu propio dispositivo y no se graba ni se envía a ningún servidor."]], ["Qué se guarda y dónde", ["Perfiles (nombre, avatar, tipo de voz y rango), progreso, ajustes y canciones guardadas se almacenan solo en el navegador de tu dispositivo (almacenamiento local). No los recibimos.", "Puedes descargarlos con «Exportar copia» y borrarlos desde Ajustes. Si borras los datos del navegador o desinstalas la app, se pierden."]], ["Micrófono y audios", ["El sonido del micrófono se analiza en tiempo real en tu dispositivo para medir afinación, vibrato y resonancia. No se graba ni se transmite.", "Los audios que eliges en «Califica tu voz» o «Canta conmigo» también se procesan en el dispositivo y no se suben. Las últimas canciones que cantas desde un archivo (hasta 6) se guardan en el navegador para que puedas volver a abrirlas desde «Tus canciones». La separación de la voz con IA también se hace en tu dispositivo: solo se descarga el modelo, el audio no sale de él."]], ["Lo único que sale de tu dispositivo", ["<b>Comentarios</b>: si usas «Danos tu opinión», enviamos tu texto, el email si decides ponerlo y, si lo marcas, datos técnicos (navegador, tamaño de pantalla, versión de la app).", "<b>Informes de errores</b>: si la app falla, se envía un aviso técnico automático (mensaje de error, navegador, versión y pantalla de la app). No incluye tu voz, tu nombre de perfil ni tu progreso.", "<b>Estadísticas sin cookies</b>: usamos Cloudflare Web Analytics, que cuenta visitas de forma agregada sin cookies ni identificarte.", "<b>Uso diario anónimo</b>: una vez al día que abres la app se envía un identificador aleatorio de este dispositivo (no tu nombre), la versión, si está instalada y cuántos días y módulos has practicado. Sirve para contar cuántas personas la usan.", "<b>Interés en Premium</b>: si abres «Resonar Premium», enviamos ese mismo identificador, desde dónde lo abriste, el precio que viste y tu respuesta. Solo si lo marcas, también tu email, para avisarte cuando salga y para nada más.", "<b>YouTube</b>: en «Canta conmigo» se carga el reproductor de YouTube en modo de privacidad mejorada (youtube-nocookie.com) y nuestro servidor consulta el título del vídeo. Al reproducir un vídeo se aplica la política de privacidad de Google."]], ["Cuánto tiempo", ["Los comentarios y las respuestas sobre Premium se conservan un máximo de 12 meses; el uso diario, 60 días, y los informes de errores, 30 días. Después se borran automáticamente."]], ["Base y derechos", ["Tratamos los comentarios, los informes de errores, el uso diario y las respuestas sobre Premium por interés legítimo en mantener y mejorar la app. El email para avisarte de Premium lo tratamos solo con tu consentimiento, que puedes retirar cuando quieras. Puedes pedir el acceso o la supresión de un comentario o de tu email escribiendo al contacto de abajo, y reclamar ante la Agencia Española de Protección de Datos (aepd.es).", "Si tienes menos de 14 años, no pongas tu email en los comentarios ni en Premium."]], ["Cookies", ["Resonar no usa cookies propias ni de publicidad. El almacenamiento local solo guarda lo necesario para que la app funcione."]]],LEGAL=[["Titular", ["{OWNER}. Contacto: {CONTACT}."]], ["Uso", ["Resonar es gratuita y se ofrece tal cual, sin garantías. Puede cambiar o dejar de estar disponible."]], ["Salud", ["Resonar es una herramienta de práctica: no diagnostica ni sustituye a un profesor de canto, logopeda u otorrino. Si algo duele, para."]], ["Propiedad", ["El diseño, los textos y el código de Resonar son de su titular. Los vídeos de YouTube pertenecen a sus autores y se muestran con el reproductor oficial."]]];
 function legalFill(x){const owner=CFG.owner||'El responsable de Resonar';const contact=CFG.email?`<a href="mailto:${CFG.email}" style="color:var(--vib)">${CFG.email}</a> o el formulario «Danos tu opinión»`:'el formulario «Danos tu opinión» de la app';return x.replace('{OWNER}',owner).replace('{CONTACT}',contact)}
 function openLegal(which){const L=which==='legal'?LEGAL:PRIV;$('#lgTitle').textContent=which==='legal'?'Aviso legal':'Privacidad';
   $('#lgBody').innerHTML=L.map(([h,ps])=>'<h3>'+h+'</h3>'+ps.map(q=>'<p>'+legalFill(q)+'</p>').join('')).join('')+(which==='priv'?'<h3>Contacto</h3><p>'+legalFill('{OWNER}: {CONTACT}.')+'</p>':'');
@@ -2317,6 +2329,40 @@ $('#fbSend').onclick=async()=>{const text=$('#fbText').value.trim(),mail=$('#fbM
     $('#fbText').value='';$('#fbMsg').textContent='';closeSheets();toast('¡Gracias! Lo hemos recibido. 💜')}
   catch(e){$('#fbSend').disabled=false;$('#fbMsg').textContent=e.message&&e.message.length>10?e.message:(HOSTED?'No se ha podido enviar. Comprueba la conexión y vuelve a probar.':'Desde esta vista previa no se puede enviar: hazlo desde la web publicada.')}};
 
+
+/* --- Premium: prueba de interés. Aún no se vende ni se cobra nada: solo medimos quién lo querría, en qué puerta y a qué precio.
+   Identificador anónimo por dispositivo (rsn_uid). /api/ping una vez al día (usuarios activos); /api/interest al abrir y al responder. --- */
+const PM_FEAT={ai:'Canta conmigo sin límites: separación de voz con IA, MP3 y cambio de velocidad',rate:'Califica tu voz completo: informe detallado y evolución de tus notas',spec:'Módulos de especialización: mixta y belting, baritenor y voz alta'};
+const PM_PRICES=[299,499,999],PM_REASONS={caro:'Es caro',nouso:'No lo usaría',suscr:'Prefiero pagar al mes',otro:'Otro motivo'};
+const PM={door:'set',price:499};
+function rsnUid(){let u=LS.get('uid','');if(typeof u!=='string'||!/^[a-z0-9]{12}$/.test(u)){u=Array.from(crypto.getRandomValues(new Uint8Array(12)),b=>(b%36).toString(36)).join('');LS.set('uid',u)}return u}
+function pmPrice(){let v=LS.get('pmv',0);if(!PM_PRICES.includes(v)){v=PM_PRICES[crypto.getRandomValues(new Uint8Array(1))[0]%PM_PRICES.length];LS.set('pmv',v)}return v}
+function pmCtx(){let days=0,mods=0;try{if(prog){days=new Set(prog.days||[]).size;mods=MODULES.filter(m=>m.ex.some(e=>(prog.stars[e.id]||0)>0)).length}}catch(e){}return{ver:APP_VER,pwa:isStandalone(),demo:isDemo(),sex:prof&&prof.sex||'',days,mods}}
+function pmPost(path,body){if(!HOSTED)return Promise.resolve(false);return fetch(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),keepalive:true}).then(r=>r.ok||r.status===204).catch(()=>false)}
+function pmPing(){if(!HOSTED||isDemo())return;const d=today();if(LS.get('ping','')===d)return;LS.set('ping',d);pmPost('/api/ping',{uid:rsnUid(),ctx:pmCtx()})}
+function pmSend(choice,extra){const ans=LS.get('pmAns',{});if(choice!=='view'){ans[PM.door]=choice;LS.set('pmAns',ans)}return pmPost('/api/interest',Object.assign({uid:rsnUid(),door:PM.door,price:PM.price,choice,ctx:pmCtx()},extra||{}))}
+const pmEur=c=>(c/100).toFixed(2).replace('.',',')+' €';
+function openPm(door){PM.door=PM_FEAT[door]||door==='set'?door:'set';PM.price=pmPrice();closeSheets();pmStep1();openSheet('pm');const ans=LS.get('pmAns',{});if(!ans[PM.door])pmSend('view')}
+function pmStep1(){const keys=Object.keys(PM_FEAT),first=PM_FEAT[PM.door]?[PM.door,...keys.filter(k=>k!==PM.door)]:keys;
+  $('#pmBody').innerHTML=`<p class="small mute" style="margin-top:10px">Estamos pensando en una versión Premium para que Resonar pueda seguir creciendo. <b>Aún no está a la venta y no se cobra nada</b>: solo queremos saber si te interesaría.</p>
+  <ul class="pmf">${first.map((k,i)=>`<li class="${i===0&&PM.door!=='set'?'hl':''}">${esc(PM_FEAT[k])}</li>`).join('')}<li>Y todo lo gratis de ahora sigue siendo gratis</li></ul>
+  <div class="card center"><div style="font-size:36px;font-weight:700">${pmEur(PM.price)}</div><div class="small mute">pago único · para siempre</div></div>
+  <div style="display:flex;flex-direction:column;gap:10px;max-width:340px;margin:16px auto 4px"><button class="btn pri big" id="pmYes">💜 Lo quiero</button><button class="btn ghost" id="pmNo">Ahora no</button></div>`;
+  $('#pmYes').onclick=()=>{pmSend('yes');pmStep2()};$('#pmNo').onclick=()=>{pmSend('no');pmStepNo()}}
+function pmStep2(){$('#pmBody').innerHTML=`<p style="margin-top:12px"><b>¡Gracias! 💜</b> Nos ayuda mucho saberlo.</p><p class="small mute">Si quieres, te avisamos cuando salga (y con prioridad). Es opcional.</p>
+  <input class="fbm" id="pmMail" type="email" maxlength="200" placeholder="Tu email" autocomplete="email">
+  <label class="row small mute" style="margin-top:10px;gap:8px;align-items:flex-start"><input type="checkbox" id="pmOk"> <span>Acepto que uséis mi email solo para avisarme cuando salga Premium. Podéis borrarlo cuando lo pida. <button class="btn ghost" data-legal="priv" style="padding:2px 6px;font-size:13px">Privacidad</button></span></label>
+  <div class="row" style="margin-top:14px"><span class="small mute sp" id="pmMsg"></span><button class="btn ghost" id="pmSkip">No hace falta</button> <button class="btn pri" id="pmSendMail">Avisadme</button></div>`;
+  bindLegal($('#pmBody'));$('#pmSkip').onclick=()=>{closeSheets();toast('¡Gracias! Lo tenemos en cuenta. 💜')};
+  $('#pmSendMail').onclick=async()=>{const m=$('#pmMail').value.trim();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(m)){$('#pmMsg').textContent='Revisa el email.';return}if(!$('#pmOk').checked){$('#pmMsg').textContent='Marca la casilla para poder avisarte.';return}
+    $('#pmSendMail').disabled=true;$('#pmMsg').textContent='Enviando…';const ok=await pmSend('yes',{email:m,consent:true});
+    if(ok){closeSheets();toast('¡Apuntado! Te avisaremos cuando salga. 💜')}else{$('#pmSendMail').disabled=false;$('#pmMsg').textContent=HOSTED?'No se ha podido enviar. Prueba otra vez.':'Desde esta vista previa no se puede enviar.'}}}
+function pmStepNo(){$('#pmBody').innerHTML=`<p style="margin-top:12px">Gracias por decírnoslo. ¿Nos cuentas por qué? <span class="small mute">(opcional)</span></p>
+  <div style="display:flex;flex-direction:column;gap:8px;max-width:340px;margin:12px auto">${Object.entries(PM_REASONS).map(([k,t])=>`<button class="btn" data-r="${k}">${t}</button>`).join('')}</div>
+  <div class="center"><button class="btn ghost" data-close>Cerrar</button></div>`;
+  $$('#pmBody [data-r]').forEach(b=>b.onclick=()=>{pmSend('no',{reason:b.dataset.r});closeSheets();toast('¡Gracias! 💜')});$$('#pmBody [data-close]').forEach(b=>b.onclick=closeSheets)}
+function bindPm(root){(root||document).querySelectorAll('[data-pm]').forEach(b=>b.onclick=()=>openPm(b.dataset.pm))}
+bindPm();
 
 /* --- diagnóstico del detector (fase 0): cifras en vivo y grabación de 10 s con sus lecturas --- */
 const DG={on:false,t0:0,read:[],fps:[],stat:[],lastUi:0};

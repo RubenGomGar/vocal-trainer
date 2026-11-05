@@ -2,6 +2,8 @@
 // /api/yt        → título y canal de un vídeo de YouTube (oEmbed). 403 = el autor no deja insertarlo.
 // /api/feedback  → POST comentario de un usuario (se guarda en KV 12 meses)
 // /api/log       → POST informe de error de JavaScript (se guarda en KV 30 días)
+// /api/ping      → POST «uso hoy» (identificador anónimo, una vez al día) para contar usuarios activos (KV 60 días)
+// /api/interest  → POST prueba de interés en Premium (aún no se vende): puerta, precio visto, respuesta, email con permiso (KV 12 meses)
 // /api/admin     → panel de comentarios o errores. Se entra con la clave en un formulario (POST) y queda una cookie
 //                  HttpOnly de 12 h; la clave nunca va en la URL. Máx. 10 intentos fallidos por hora e IP.
 // El resto lo sirven los static assets (public/).
@@ -17,6 +19,8 @@ export default {
       if (p === '/api/yt') return await yt(url);
       if (p === '/api/feedback') return await feedback(req, env);
       if (p === '/api/log') return await log(req, env);
+      if (p === '/api/ping') return await ping(req, env);
+      if (p === '/api/interest') return await interest(req, env);
       if (p === '/api/admin') return await admin(req, url, env);
       if (p.startsWith('/api/')) return json({ error: 'not_found' }, 404);
     } catch (e) {
@@ -66,6 +70,60 @@ async function limited(env, kind, ip, max) {
   if (n >= max) return true;
   await env.RESONAR.put(k, String(n + 1), { expirationTtl: 3700 });
   return false;
+}
+
+// Solo el límite nativo por minuto (no gasta escrituras de KV): para peticiones frecuentes y pequeñas
+async function quickLimited(env, kind, ip) {
+  if (!env.RL) return false;
+  try { const { success } = await env.RL.limit({ key: kind + ':' + ip }); return !success } catch { return false }
+}
+const UID = /^[a-z0-9]{12}$/;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function ctxOf(c) {
+  c = c && typeof c === 'object' ? c : {};
+  return { ver: str(c.ver, 20), pwa: !!c.pwa, demo: !!c.demo, sex: ['M', 'F', 'X'].includes(c.sex) ? c.sex : '', days: Math.max(0, Math.min(9999, +c.days || 0)), mods: Math.max(0, Math.min(99, +c.mods || 0)) };
+}
+
+/* ---------- usuarios activos ---------- */
+async function ping(req, env) {
+  if (req.method !== 'POST') return json({ error: 'method' }, 405);
+  if (!env.RESONAR) return new Response(null, { status: 204 });
+  if (!sameOrigin(req)) return json({ error: 'origin' }, 403);
+  const b = await readJson(req, 1500);
+  if (!b || !UID.test(b.uid || '')) return json({ error: 'bad_body' }, 400);
+  if (await quickLimited(env, 'png', ipOf(req))) return new Response(null, { status: 204 });
+  const c = ctxOf(b.ctx), day = new Date().toISOString().slice(0, 10);
+  await env.RESONAR.put(`act:${day}:${b.uid}`, '', { expirationTtl: 60 * 86400, metadata: { ...c, country: req.cf && req.cf.country || null } });
+  return new Response(null, { status: 204 });
+}
+
+/* ---------- interés en Premium ---------- */
+const PM_DOORS = ['ai', 'rate', 'spec', 'set'], PM_PRICES = [299, 499, 999], PM_REASONS = ['caro', 'nouso', 'suscr', 'otro'];
+async function interest(req, env) {
+  if (req.method !== 'POST') return json({ error: 'method' }, 405);
+  if (!env.RESONAR) return json({ error: 'kv_missing' }, 503);
+  if (!sameOrigin(req)) return json({ error: 'origin' }, 403);
+  const b = await readJson(req, 2000);
+  if (!b || !UID.test(b.uid || '') || !PM_DOORS.includes(b.door) || !PM_PRICES.includes(b.price) || !['view', 'yes', 'no'].includes(b.choice)) return json({ error: 'bad_body' }, 400);
+  if (await quickLimited(env, 'int', ipOf(req))) return json({ error: 'rate' }, 429);
+  const key = `int:${b.uid}:${b.door}`;
+  const old = await env.RESONAR.get(key, 'json');
+  if (old && b.choice === 'view') return json({ ok: true }); // ya contestó en esta puerta: no se pisa la respuesta
+  let email = str(b.email, 200).trim();
+  if (!(email && EMAIL.test(email) && b.consent === true)) email = '';
+  const reason = PM_REASONS.includes(b.reason) ? b.reason : '';
+  const date = new Date().toISOString();
+  const rec = {
+    ...(old || {}), uid: b.uid, door: b.door, price: b.price, choice: b.choice, date, first: (old && old.first) || date,
+    ctx: ctxOf(b.ctx), country: req.cf && req.cf.country || null
+  };
+  if (b.choice === 'yes') rec.reason = ''; else if (reason) rec.reason = reason;
+  if (email) { rec.email = email; rec.consent = date }
+  await env.RESONAR.put(key, JSON.stringify(rec), {
+    expirationTtl: 365 * 86400,
+    metadata: { door: rec.door, price: rec.price, choice: rec.choice, reason: rec.reason || '', email: !!rec.email, demo: rec.ctx.demo, days: rec.ctx.days }
+  });
+  return json({ ok: true });
 }
 
 /* ---------- comentarios ---------- */
@@ -133,6 +191,69 @@ async function validToken(env, tok) { const [exp] = String(tok || '').split('.')
 const cookieOf = req => (req.headers.get('cookie') || '').split(/;\s*/).map(c => c.split('=')).find(([k]) => k === 'rsn_admin')?.[1];
 function loginPage(msg) { return new Response(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Resonar · Panel</title>${STYLE}<h1>Panel de Resonar</h1>${msg ? `<p style="color:#ff6b7a">${esc(msg)}</p>` : ''}<form method="post"><input type="password" name="key" placeholder="Clave del panel" autocomplete="current-password" required autofocus> <button>Entrar</button></form>`, { status: msg ? 401 : 200, headers: ADM_H }) }
 
+const NAV = '<p><a href="?kind=fb">Comentarios</a> · <a href="?kind=err">Errores</a> · <a href="?kind=int">Interés Premium</a> · <a href="?salir">Salir</a>';
+async function listAll(env, prefix, max = 20000) {
+  const out = []; let cursor;
+  do { const r = await env.RESONAR.list({ prefix, cursor, limit: 1000 }); out.push(...r.keys); cursor = r.list_complete ? null : r.cursor } while (cursor && out.length < max);
+  return out;
+}
+const pct = (a, b) => b ? Math.round(a / b * 1000) / 10 : 0;
+const eur = c => (c / 100).toFixed(2).replace('.', ',') + ' €';
+const DOOR_N = { ai: 'Canta conmigo (IA, MP3)', rate: 'Califica tu voz', spec: 'Módulos de especialización', set: 'Ajustes' };
+const REASON_N = { caro: 'Es caro', nouso: 'No lo usaría', suscr: 'Prefiero suscripción', otro: 'Otro' };
+
+async function adminInterest(env, url) {
+  const now = Date.now(), d28 = new Date(now - 27 * 864e5).toISOString().slice(0, 10), d7 = new Date(now - 6 * 864e5).toISOString().slice(0, 10);
+  // activos: claves act:<día>:<uid> (sin modo demo)
+  const act = await listAll(env, 'act:');
+  const a28 = new Set(), a7 = new Set(), a3d = new Set(), byDay = {};
+  for (const k of act) {
+    const [, day, uid] = k.name.split(':'); const m = k.metadata || {};
+    if (m.demo || day < d28) continue;
+    a28.add(uid); if (day >= d7) a7.add(uid); if ((m.days || 0) >= 3) a3d.add(uid);
+    byDay[day] = (byDay[day] || 0) + 1;
+  }
+  // interés: claves int:<uid>:<puerta>
+  const ik = (await listAll(env, 'int:')).filter(k => !(k.metadata && k.metadata.demo));
+  const doors = {}, prices = {}, reasons = {}, seenU = new Set(), yesU = new Set();
+  for (const k of ik) {
+    const [, uid, door] = k.name.split(':'); const m = k.metadata || {};
+    const d = doors[door] = doors[door] || { seen: 0, yes: 0, no: 0 }; d.seen++; if (m.choice === 'yes') d.yes++; if (m.choice === 'no') d.no++;
+    seenU.add(uid); if (m.choice === 'yes') yesU.add(uid);
+    if (m.choice === 'no' && m.reason) reasons[m.reason] = (reasons[m.reason] || 0) + 1;
+    const p = prices[m.price] = prices[m.price] || { seen: new Set(), yes: new Set() }; p.seen.add(uid); if (m.choice === 'yes') p.yes.add(uid);
+  }
+  const mailKeys = ik.filter(k => k.metadata && k.metadata.email).map(k => k.name);
+  const mails = (await Promise.all(mailKeys.slice(0, 500).map(k => env.RESONAR.get(k, 'json')))).filter(Boolean).sort((a, b) => a.date < b.date ? 1 : -1);
+  const priceRows = Object.keys(prices).sort((a, b) => a - b).map(p => ({ price: +p, seen: prices[p].seen.size, yes: prices[p].yes.size, pct: pct(prices[p].yes.size, prices[p].seen.size) }));
+  const out = {
+    active28: a28.size, active7: a7.size, active28With3Days: a3d.size, opened: seenU.size, wants: yesU.size,
+    wantsOfActive28: pct(yesU.size, a28.size), wantsOfOpened: pct(yesU.size, seenU.size),
+    doors, prices: priceRows, reasons, byDay,
+    emails: mails.map(r => ({ email: r.email, door: r.door, price: r.price, date: r.date, days: r.ctx && r.ctx.days }))
+  };
+  if (url.searchParams.get('format') === 'json') return new Response(JSON.stringify(out), { headers: { ...JSON_H, 'x-robots-tag': 'noindex' } });
+  const days = Object.keys(byDay).sort().reverse().slice(0, 14);
+  const html = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Resonar · Interés Premium</title>${STYLE}
+<h1>Interés en Premium</h1>
+${NAV} · <a href="?kind=int&format=json">JSON</a></p>
+<p><small>Sin contar el modo demo. «Lo quiero» = pulsó «Lo quiero» en alguna puerta. Premium aún no se vende.</small></p>
+<table>
+<tr><td>Usuarios activos (28 días)</td><td><b>${out.active28}</b> <small>· 7 días: ${out.active7} · con ≥ 3 días de práctica: ${out.active28With3Days}</small></td></tr>
+<tr><td>Han abierto Premium</td><td><b>${out.opened}</b></td></tr>
+<tr><td>Dicen «Lo quiero»</td><td><b>${out.wants}</b> <small>· ${out.wantsOfActive28} % de los activos · ${out.wantsOfOpened} % de quienes lo abrieron</small></td></tr>
+<tr><td>Emails para avisar</td><td><b>${mails.length}</b></td></tr>
+</table>
+<h2>Por puerta</h2><table><tr><td><b>Puerta</b></td><td><b>Abierta</b></td><td><b>Lo quiero</b></td><td><b>Ahora no</b></td></tr>
+${Object.entries(doors).map(([k, d]) => `<tr><td>${esc(DOOR_N[k] || k)}</td><td>${d.seen}</td><td>${d.yes} <small>(${pct(d.yes, d.seen)} %)</small></td><td>${d.no}</td></tr>`).join('') || '<tr><td>Nada todavía.</td></tr>'}</table>
+<h2>Por precio (pago único)</h2><table><tr><td><b>Precio</b></td><td><b>Lo vieron</b></td><td><b>Lo quieren</b></td></tr>
+${priceRows.map(r => `<tr><td>${eur(r.price)}</td><td>${r.seen}</td><td>${r.yes} <small>(${r.pct} %)</small></td></tr>`).join('') || '<tr><td>Nada todavía.</td></tr>'}</table>
+<h2>Por qué «ahora no»</h2><table>${Object.entries(reasons).map(([k, n]) => `<tr><td>${esc(REASON_N[k] || k)}</td><td>${n}</td></tr>`).join('') || '<tr><td>Nadie ha dado motivo.</td></tr>'}</table>
+<h2>Emails (con permiso, solo para avisar del lanzamiento)</h2><table>${mails.map(r => `<tr><td>${esc(r.email)}</td><td>${esc(DOOR_N[r.door] || r.door)}</td><td>${eur(r.price)}</td><td><small>${esc(r.date.slice(0, 10))} · ${esc(r.ctx && r.ctx.days || 0)} días de práctica</small></td></tr>`).join('') || '<tr><td>Ninguno todavía.</td></tr>'}</table>
+<h2>Activos por día</h2><table>${days.map(d => `<tr><td>${esc(d)}</td><td>${byDay[d]}</td></tr>`).join('') || '<tr><td>Nada todavía.</td></tr>'}</table>`;
+  return new Response(html, { headers: ADM_H });
+}
+
 async function admin(req, url, env) {
   if (!env.ADMIN_KEY) return new Response('Panel desactivado', { status: 503, headers: ADM_H });
   if (!env.RESONAR) return new Response('Falta el KV RESONAR', { status: 503, headers: ADM_H });
@@ -148,6 +269,7 @@ async function admin(req, url, env) {
   }
   if (url.searchParams.get('salir') != null) return new Response(null, { status: 303, headers: { location: '/api/admin', 'set-cookie': 'rsn_admin=; Path=/api/admin; Max-Age=0; HttpOnly; Secure; SameSite=Strict' } });
   if (!(await validToken(env, cookieOf(req)))) return loginPage('');
+  if (url.searchParams.get('kind') === 'int') return await adminInterest(env, url);
   const kind = url.searchParams.get('kind') === 'err' ? 'err' : 'fb';
   const list = await env.RESONAR.list({ prefix: kind + ':', limit: 1000 });
   const keys = list.keys.map(k => k.name).sort().reverse().slice(0, 150);
@@ -158,7 +280,7 @@ async function admin(req, url, env) {
     : recs.map(r => `<tr><td>${esc(r.date.slice(0, 16).replace('T', ' '))}</td><td>${esc(r.msg)}<br><small>${esc(r.src)}:${esc(r.line)}</small></td><td>${esc(r.scr)}</td><td><small>${esc(r.ver)} · ${esc(r.vw)}${r.pwa ? ' · app' : ''}<br>${esc(r.ua)}</small></td></tr>`);
   const html = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Resonar · ${kind === 'fb' ? 'Comentarios' : 'Errores'}</title>${STYLE}
 <h1>${kind === 'fb' ? 'Comentarios' : 'Errores'} (${recs.length})</h1>
-<p><a href="?kind=fb">Comentarios</a> · <a href="?kind=err">Errores</a> · <a href="?kind=${kind}&format=json">JSON</a> · <a href="?salir">Salir</a></p>
+${NAV} · <a href="?kind=${kind}&format=json">JSON</a></p>
 <table>${rows.join('') || '<tr><td>Nada todavía.</td></tr>'}</table>`;
   return new Response(html, { headers: ADM_H });
 }
