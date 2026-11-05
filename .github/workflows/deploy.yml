@@ -1,0 +1,53 @@
+name: Desplegar
+
+# develop → vocal-staging (beta) · main → vocal (público)
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+# Permisos mínimos del token de GitHub: solo leer el código
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    steps:
+      # Acciones fijadas por commit exacto (no por etiqueta) para que nadie pueda cambiar lo que se ejecuta
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Comprobar
+        run: node scripts/check.mjs
+
+      - name: Build
+        run: node scripts/build.mjs ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+
+      - name: Desplegar en Cloudflare
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUT_ID }}
+          # environment añade --env al deploy y a la subida de secretos (vacío = producción).
+          # Ojo: «cond && '' || x» siempre da x en GitHub (el texto vacío es falso); por eso la condición va al revés.
+          environment: ${{ github.ref_name != 'main' && 'staging' || '' }}
+          command: deploy
+          # Copia el secreto de GitHub PANEL_ADMIN_KEY como secreto ADMIN_KEY del Worker (panel /api/admin)
+          secrets: |
+            ADMIN_KEY
+        env:
+          ADMIN_KEY: ${{ secrets.PANEL_ADMIN_KEY }}
